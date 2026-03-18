@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="description" content="ตั้งค่าบัญชี - PanderX">
+    <meta name="theme-color" content="#38bdf8">
+    <title>ตั้งค่า | PanderX</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/settings.css">
+</head>
+<body>
+    <div class="water-drop-bg drop-1"></div>
+    <div class="water-drop-bg drop-2"></div>
+    <div id="toastContainer"></div>
+
+    <!-- SIDEBAR (same pattern) -->
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+    <aside id="sidebarDrawer" class="sidebar-drawer">
+        <div class="sidebar-header">
+            <a href="./index.html" class="sidebar-logo">
+                <div class="sidebar-logo-icon">P</div>
+                <span class="sidebar-logo-text">PanderX</span>
+            </a>
+            <button class="sidebar-close-btn" onclick="closeSidebar()" aria-label="ปิดเมนู">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div id="sidebarUserStrip" class="sidebar-user-strip" style="display:none;">
+            <div id="sidebarAvatar" class="sidebar-avatar">U</div>
+            <div class="sidebar-user-info"><div id="sidebarUsername" class="sidebar-username">Username</div><div class="sidebar-balance"><svg width="11" height="11" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 9l10 13 10-13-10-7z"/></svg><span id="sidebarBalance">0</span> บาท</div></div>
+        </div>
+        <nav class="sidebar-nav">
+            <p class="sidebar-section-label">เมนูหลัก</p>
+            <a href="./index.html" class="sidebar-item"><span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg></span>หน้าหลัก</a>
+            <a href="./homerent.html" class="sidebar-item"><span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg></span>เช่าเว็บไซต์</a>
+            <a href="./upgrade.html" class="sidebar-item"><span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg></span>อัปเกรด<span class="sidebar-badge">NEW</span></a>
+        </nav>
+        <div class="sidebar-divider"></div>
+        <div id="sidebarAuthGuest" class="sidebar-auth-section" style="display:none;">
+            <p class="sidebar-section-label">บัญชีผู้ใช้</p>
+            <button onclick="goToLogin();closeSidebar();" class="sidebar-auth-btn sidebar-login-btn">เข้าสู่ระบบ</button>
+            <button onclick="goToRegister();closeSidebar();" class="sidebar-auth-btn sidebar-register-btn">สมัครสมาชิก</button>
+        </div>
+        <div id="sidebarAuthUser" class="sidebar-auth-section" style="display:none;">
+            <p class="sidebar-section-label">บัญชีของฉัน</p>
+            <a href="./profile.html" class="sidebar-item"><span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></span>โปรไฟล์</a>
+            <a href="./orders.html" class="sidebar-item"><span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></span>ประวัติการสั่งซื้อ</a>
+            <a href="./settings.html" class="sidebar-item active"><span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></span>ตั้งค่า</a>
+            <button onclick="handleLogout()" class="sidebar-item sidebar-logout"><span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg></span>ออกจากระบบ</button>
+        </div>
+        <div class="sidebar-version">PanderX v2.0 © 2026</div>
+    </aside>
+
+    <!-- Navbar -->
+    <nav class="navbar glass-panel-white px-4 py-2.5 flex items-center justify-between">
+        <!-- Hamburger LEFT -->
+        <button id="hamburgerBtn" class="hamburger-btn" onclick="toggleSidebar(event)" aria-expanded="false">
+            <span class="hamburger-bar"></span>
+            <span class="hamburger-bar"></span>
+            <span class="hamburger-bar"></span>
+        </button>
+
+        <!-- Center Brand -->
+        <a href="./index.html" class="navbar-brand text-xl md:text-2xl">PanderX</a>
+
+        <!-- RIGHT Auth -->
+        <div class="flex items-center gap-2">
+            <a href="./login.html" id="loginBtn" class="btn-liquid px-3 py-1.5 text-sm font-medium" style="display:none;">
+                เข้าสู่ระบบ
+            </a>
+
+            <div id="userProfile" class="profile-dropdown-container" style="display:none;">
+                <button class="profile-trigger" id="profileTrigger" onclick="toggleProfileDropdown(event)">
+                    <div class="balance-pill hidden sm:flex">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 9l10 13 10-13-10-7z"/></svg>
+                        <span id="userBalance">0.00</span>
+                    </div>
+                    <div class="avatar-glass" id="userAvatar">U</div>
+                    <svg class="w-3 h-3 text-slate-400 transition-transform duration-200" id="dropdownArrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+
+                <div class="glass-dropdown" id="profileDropdown">
+                    <div class="p-3 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="avatar-glass w-10 h-10 text-base" id="dropdownAvatar">U</div>
+                            <div class="min-w-0 flex-1">
+                                <div class="font-bold text-slate-800 truncate text-sm" id="dropdownName">ผู้ใช้</div>
+                                <div class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                                    <span>ออนไลน์</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2 pt-2 border-t border-slate-100 flex justify-between items-center">
+                            <span class="text-xs text-slate-500">ยอดคงเหลือ</span>
+                            <span class="balance-pill" id="dropdownBalance">0.00 ฿</span>
+                        </div>
+                    </div>
+                    <div class="py-1">
+                        <div class="dropdown-item" onclick="handleMenuClick('profile')">
+                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>โปรไฟล์ของฉัน</span>
+                        </div>
+                        <div class="dropdown-item" onclick="handleMenuClick('orders')">
+                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                            <span>ประวัติการสั่งซื้อ</span>
+                        </div>
+                        <div class="dropdown-item" onclick="handleMenuClick('topup')">
+                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                            <span>เติมเงิน</span>
+                        </div>
+                        <div class="dropdown-item" onclick="handleMenuClick('settings')">
+                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span>ตั้งค่า</span>
+                        </div>
+                        <div class="dropdown-item logout-item" onclick="handleLogout()">
+                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                            <span>ออกจากระบบ</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="w-full max-w-2xl mx-auto px-4 pb-20">
+        <h1 class="text-2xl font-bold text-slate-800 mb-1">ตั้งค่า</h1>
+        <p class="text-slate-500 text-sm mb-5">จัดการการตั้งค่าบัญชีและแอปพลิเคชัน</p>
+
+        <!-- Account section -->
+        <div class="settings-section mb-3">
+            <div class="settings-section-label text-xs font-bold text-slate-400 uppercase tracking-widest px-1 mb-2">บัญชี</div>
+            <div class="settings-card">
+                <a href="./profile.html" class="settings-row">
+                    <div class="settings-row-icon sky"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></div>
+                    <div class="flex-1"><div class="settings-row-label">โปรไฟล์</div><div class="settings-row-desc">แก้ไขชื่อ รูป และข้อมูลส่วนตัว</div></div>
+                    <div class="settings-row-right"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+                </a>
+                <a href="./topup.html" class="settings-row">
+                    <div class="settings-row-icon green"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></div>
+                    <div class="flex-1"><div class="settings-row-label">เติมเงิน</div><div class="settings-row-desc" id="settingsBalanceDesc">ยอดคงเหลือ: กำลังโหลด...</div></div>
+                    <div class="settings-row-right"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+                </a>
+                <a href="./orders.html" class="settings-row">
+                    <div class="settings-row-icon indigo"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg></div>
+                    <div class="flex-1"><div class="settings-row-label">ประวัติการสั่งซื้อ</div><div class="settings-row-desc">ดูรายการสั่งซื้อและสถานะทั้งหมด</div></div>
+                    <div class="settings-row-right"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="settings-section mb-3">
+            <div class="settings-section-label text-xs font-bold text-slate-400 uppercase tracking-widest px-1 mb-2">การแจ้งเตือน</div>
+            <div class="settings-card">
+                <div class="settings-row settings-row-notif">
+                    <div class="settings-row-icon amber"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg></div>
+                    <div class="flex-1"><div class="settings-row-label">การแจ้งเตือนคำสั่งซื้อ</div><div class="settings-row-desc">แจ้งเมื่อมีการอัปเดตสถานะ</div></div>
+                    <label class="toggle">
+                        <input type="checkbox" id="notifOrders" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="settings-row settings-row-notif">
+                    <div class="settings-row-icon sky"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg></div>
+                    <div class="flex-1"><div class="settings-row-label">โปรโมชั่นและข่าวสาร</div><div class="settings-row-desc">รับข้อเสนอและอัปเดตใหม่</div></div>
+                    <label class="toggle">
+                        <input type="checkbox" id="notifPromo">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security -->
+        <div class="settings-section mb-3">
+            <div class="settings-section-label text-xs font-bold text-slate-400 uppercase tracking-widest px-1 mb-2">ความปลอดภัย</div>
+            <div class="settings-card">
+                <div class="settings-row" onclick="promptChangePassword()">
+                    <div class="settings-row-icon indigo"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg></div>
+                    <div class="flex-1"><div class="settings-row-label">เปลี่ยนรหัสผ่าน</div><div class="settings-row-desc">อัปเดตรหัสผ่านบัญชีของคุณ</div></div>
+                    <div class="settings-row-right"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danger zone -->
+        <div class="settings-section">
+            <div class="settings-card">
+                <div class="settings-row settings-row-logout">
+                    <div class="settings-row-icon red"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg></div>
+                    <div class="flex-1"><div class="settings-row-label settings-row-label-danger">ออกจากระบบ</div><div class="settings-row-desc">สิ้นสุดเซสชันปัจจุบัน</div></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+
+    <script src="js/frontend/settings-ui.js"></script>
+
+    <script type="module" src="js/frontend/settings.js"></script>
+</body>
+</html>

@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="description" content="Dashboard - PanderX Studio">
+    <title>แดชบอร์ด | PanderX Studio</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/common.css">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.9);
+            --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
+        }
+        
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+            max-width: 100%;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #e0f2fe 0%, #f3e8ff 50%, #f8fafc 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px 16px;
+        }
+        
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-bottom: 24px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            width: fit-content;
+        }
+        
+        .breadcrumb a { 
+            color: #0ea5e9; 
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .breadcrumb a:hover { color: #0284c7; }
+        .breadcrumb span { color: #94a3b8; }
+
+        /* Liquid Glass Search Bar */
+        .search-bar-container {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 
+                        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .search-bar-container:focus-within {
+            box-shadow: 0 8px 30px rgba(56, 189, 248, 0.15), 
+                        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            border-color: rgba(56, 189, 248, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .search-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 1rem;
+            color: #1e293b;
+            background: transparent;
+            font-family: 'Prompt', sans-serif;
+        }
+        .search-input::placeholder { color: #94a3b8; }
+
+        /* Liquid Glass Action Buttons */
+        .action-btns {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        
+        .btn-action {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 100px;
+            font-weight: 600;
+            font-size: 0.9375rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            cursor: pointer;
+            font-family: 'Prompt', sans-serif;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .btn-action:active {
+            transform: translateY(0);
+        }
+
+        .btn-black {
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
+        }
+        
+        .btn-black:hover {
+            box-shadow: 0 8px 25px rgba(56, 189, 248, 0.4);
+        }
+        
+        .btn-white {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            color: #475569;
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        .btn-white:hover {
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+        
+        /* Liquid Glass Data Table */
+        .data-table-container {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            text-align: left;
+        }
+        
+        .data-table th {
+            padding: 18px 20px;
+            background: rgba(241, 245, 249, 0.6);
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.875rem;
+            border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+            backdrop-filter: blur(10px);
+        }
+        
+        .data-table td {
+            padding: 18px 20px;
+            border-bottom: 1px solid rgba(226, 232, 240, 0.4);
+            color: #334155;
+            font-size: 0.9375rem;
+            transition: background 0.2s;
+        }
+        
+        .data-table tr:hover td {
+            background: rgba(56, 189, 248, 0.03);
+        }
+        
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Glass Empty State with Shimmer */
+        .empty-state {
+            padding: 80px 20px;
+            text-align: center;
+            color: #94a3b8;
+            background: linear-gradient(
+                90deg,
+                rgba(255, 255, 255, 0.4) 0%,
+                rgba(255, 255, 255, 0.6) 50%,
+                rgba(255, 255, 255, 0.4) 100%
+            );
+            background-size: 200% 100%;
+            animation: shimmer 3s infinite;
+            border-radius: 16px;
+            margin: 20px;
+            border: 2px dashed rgba(148, 163, 184, 0.3);
+            backdrop-filter: blur(10px);
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        /* Liquid Glass Pagination */
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 20px;
+            background: rgba(241, 245, 249, 0.5);
+            border-top: 1px solid rgba(226, 232, 240, 0.6);
+            color: #64748b;
+            font-size: 0.875rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .btn-page {
+            padding: 8px 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            background: rgba(255, 255, 255, 0.7);
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            color: #475569;
+            backdrop-filter: blur(10px);
+        }
+        
+        .btn-page:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(56, 189, 248, 0.4);
+            color: #0ea5e9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        
+        .btn-page:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: rgba(241, 245, 249, 0.4);
+        }
+
+        /* Profile Dropdown - Fixed z-index */
+        .profile-dropdown-container {
+            position: relative;
+            z-index: 60;
+        }
+        
+        .glass-dropdown {
+            position: absolute;
+            top: calc(100% + 10px);
+            /* แก้ตรงนี้: จาก right: 0 เป็น left: 0 */
+            left: 0;
+            right: auto;
+            width: 280px;
+            background: rgba(255, 255, 255, 0.98);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+            z-index: 200;
+            transform-origin: top left;
+            transform: scale(0.95) translateY(-10px);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        
+        .glass-dropdown.active {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* สำหรับ mobile ให้ชิดขวาเหมือนเดิมเพื่อไม่ให้ล้นจอซ้าย */
+        @media (max-width: 640px) {
+            .glass-dropdown {
+                left: auto;
+                right: 0;
+                transform-origin: top right;
+                width: 260px;
+            }
+        }
+        
+        /* Hamburger Animation */
+        .hamburger-btn {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            padding: 8px;
+            transition: all 0.3s ease;
+            border-radius: 10px;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .hamburger-btn:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .hamburger-bar {
+            width: 18px;
+            height: 2px;
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            border-radius: 2px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: center;
+        }
+        
+        .hamburger-btn.active .hamburger-bar:nth-child(1) {
+            transform: translateY(7px) rotate(45deg);
+        }
+        
+        .hamburger-btn.active .hamburger-bar:nth-child(2) {
+            opacity: 0;
+            transform: scaleX(0);
+        }
+        
+        .hamburger-btn.active .hamburger-bar:nth-child(3) {
+            transform: translateY(-7px) rotate(-45deg);
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            margin: 2px 8px;
+            color: #475569;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            border-radius: 8px;
+        }
+        
+        .dropdown-item:hover {
+            background: rgba(56, 189, 248, 0.08);
+            color: #0ea5e9;
+        }
+        
+        .logout-item {
+            color: #ef4444 !important;
+            border-top: 1px solid rgba(226, 232, 240, 0.6);
+            margin-top: 4px !important;
+            border-radius: 0 0 8px 8px !important;
+        }
+        
+        .logout-item:hover {
+            background: rgba(239, 68, 68, 0.05) !important;
+        }
+
+        .profile-trigger {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(226, 232, 240, 0.6);
+            border-radius: 100px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            backdrop-filter: blur(10px);
+        }
+        
+        .profile-trigger:hover {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: rgba(56, 189, 248, 0.3);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.1);
+        }
+        
+        .profile-trigger.active {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(56, 189, 248, 0.5);
+        }
+
+        .balance-pill {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: rgba(56, 189, 248, 0.1);
+            color: #0ea5e9;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+        
+        .avatar-glass {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            color: white;
+            border-radius: 50%;
+            font-weight: 700;
+            font-size: 0.875rem;
+            border: 2px solid white;
+            box-shadow: 0 2px 8px rgba(56, 189, 248, 0.3);
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .action-btns {
+                justify-content: stretch;
+            }
+            
+            .btn-action {
+                flex: 1;
+                justify-content: center;
+            }
+            
+            .data-table th,
+            .data-table td {
+                padding: 14px 16px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-[#f8fafc]">
+    <div id="toastContainer"></div>
+
+    <!-- Sidebar Overlay -->
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="window.closeSidebar()"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebarDrawer" class="sidebar-drawer">
+        <div class="sidebar-header">
+            <a href="./index.html" class="sidebar-logo">
+                <div class="sidebar-logo-icon">P</div>
+                <span class="sidebar-logo-text">PanderX</span>
+            </a>
+            <button class="sidebar-close-btn" onclick="window.closeSidebar()" aria-label="ปิดเมนู">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="sidebarUserStrip" class="sidebar-user-strip" style="display:none;">
+            <div id="sidebarAvatar" class="sidebar-avatar">U</div>
+            <div class="sidebar-user-info">
+                <div id="sidebarUsername" class="sidebar-username">กำลังโหลด...</div>
+                <div class="sidebar-balance">
+                    <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 9l10 13 10-13-10-7z"/></svg>
+                    <span id="sidebarBalance">0.00</span> บาท
+                </div>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <p class="sidebar-section-label">เมนูหลัก</p>
+            <a href="./index.html" class="sidebar-item">
+                <span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg></span>
+                หน้าหลัก
+            </a>
+            <a href="./homerent.html" class="sidebar-item active">
+                <span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg></span>
+                เช่าเว็บไซต์
+            </a>
+        </nav>
+
+        <div class="sidebar-divider"></div>
+
+        <div id="sidebarAuthGuest" class="sidebar-auth-section" style="display:none;">
+            <p class="sidebar-section-label">บัญชีผู้ใช้</p>
+            <button onclick="window.location.href='./login.html'" class="sidebar-auth-btn sidebar-login-btn">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                เข้าสู่ระบบ
+            </button>
+        </div>
+
+        <div id="sidebarAuthUser" class="sidebar-auth-section" style="display:none;">
+            <p class="sidebar-section-label">บัญชีของฉัน</p>
+            <a href="./profile.html" class="sidebar-item">
+                <span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></span>
+                โปรไฟล์
+            </a>
+            <a href="./orders.html" class="sidebar-item">
+                <span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg></span>
+                ประวัติการสั่งซื้อ
+            </a>
+            <a href="./topup.html" class="sidebar-item">
+                <span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></span>
+                เติมเงิน
+            </a>
+            <!-- เพิ่มเมนูนี้ -->
+            <a href="./topup.html" class="sidebar-item">
+                <span class="sidebar-item-icon" style="color: #f59e0b;">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                </span>
+                <span style="color: #d97706; font-weight: 600;">อัปเกรด</span>
+            </a>
+            <button onclick="window.handleLogout()" class="sidebar-item sidebar-logout">
+                <span class="sidebar-item-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg></span>
+                ออกจากระบบ
+            </button>
+        </div>
+    </aside>
+
+    <!-- Navbar -->
+    <nav class="navbar glass-panel-white px-4 py-2.5 flex items-center justify-between relative z-50">
+        <button id="hamburgerBtn" class="hamburger-btn" onclick="window.toggleSidebar(event)">
+            <span class="hamburger-bar"></span>
+            <span class="hamburger-bar"></span>
+            <span class="hamburger-bar"></span>
+        </button>
+        <a href="./index.html" class="navbar-brand text-xl md:text-2xl">PanderX</a>
+        <div class="flex items-center gap-2">
+            <a href="./login.html" id="loginBtn" class="btn-liquid px-3 py-1.5 text-sm font-medium" style="display:none;">เข้าสู่ระบบ</a>
+            <div id="userProfile" class="profile-dropdown-container" style="display:none;">
+                <button class="profile-trigger" id="profileTrigger" onclick="window.toggleProfileDropdown(event)">
+                    <div class="balance-pill hidden sm:flex">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 9l10 13 10-13-10-7z"/></svg>
+                        <span id="userBalance">0.00</span>
+                    </div>
+                    <div class="avatar-glass" id="userAvatar">U</div>
+                    <svg class="w-3 h-3 text-slate-400 transition-transform duration-200" id="dropdownArrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div class="glass-dropdown" id="profileDropdown">
+                    <div class="p-3 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="avatar-glass w-10 h-10 text-base" id="dropdownAvatar">U</div>
+                            <div class="min-w-0 flex-1">
+                                <div class="font-bold text-slate-800 truncate text-sm" id="dropdownName">ผู้ใช้</div>
+                                <div class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                                    <span>ออนไลน์</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="py-1">
+                        <div class="dropdown-item" onclick="window.location.href='./profile.html'">
+                            <i class="fa-solid fa-user-circle w-5"></i> โปรไฟล์ของฉัน
+                        </div>
+                        <div class="dropdown-item" onclick="window.location.href='./orders.html'">
+                            <i class="fa-solid fa-history w-5"></i> ประวัติการสั่งซื้อ
+                        </div>
+                        <div class="dropdown-item" onclick="window.location.href='./topup.html'">
+                            <i class="fa-solid fa-wallet w-5"></i> เติมเงิน
+                        </div>
+                        <div class="dropdown-item logout-item" onclick="window.handleLogout()">
+                            <i class="fa-solid fa-sign-out-alt w-5"></i> ออกจากระบบ
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="dashboard-container">
+        <div class="breadcrumb">
+            <a href="./index.html">หน้าหลัก</a>
+            <span>/</span>
+            <span style="color: #1e293b; font-weight: 500;">แดชบอร์ด</span>
+        </div>
+
+        <div class="search-bar-container">
+            <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+            <input type="text" class="search-input" placeholder="ค้นหาร้านค้าของคุณ">
+        </div>
+
+        <div class="action-btns">
+            <button class="btn-action btn-black">
+                <i class="fa-solid fa-plus" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));"></i>
+                สร้างเว็บไซต์
+            </button>
+            <button class="btn-action btn-white">
+                <i class="fa-solid fa-filter" style="color: #38bdf8;"></i>
+                ฟิลเตอร์
+            </button>
+            <button class="btn-action btn-white">
+                <i class="fa-solid fa-eye" style="color: #818cf8;"></i>
+                แสดงคอลัมน์
+            </button>
+        </div>
+
+        <div class="data-table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>สถานะ</th>
+                        <th>ชื่อร้านค้า</th>
+                        <th>เจ้าของร้านค้า (อีเมล)</th>
+                    </tr>
+                </thead>
+                <tbody id="shopTableBody">
+                    <!-- จะถูกเติมด้วย JS หรือแสดง Empty State -->
+                </tbody>
+            </table>
+            <div id="emptyState" class="empty-state">
+                <p>ไม่พบข้อมูลร้านค้า</p>
+            </div>
+            <div class="pagination">
+                <span>หน้า 1 ของ 0</span>
+                <div class="flex gap-2">
+                    <button class="btn-page" disabled>ย้อนกลับ</button>
+                    <button class="btn-page" disabled>ถัดไป</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+
+    <script type="module" src="js/frontend/homerent.js"></script>
+</body>
+</html>

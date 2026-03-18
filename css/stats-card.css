@@ -1,0 +1,263 @@
+/**
+ * Enhanced Stats Cards - UI สถิติการเช่าเว็บไซต์
+ */
+
+.stats-container {
+    width: 100%;
+    margin-bottom: 2rem;
+}
+
+.stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 1.5rem;
+}
+
+.stats-header h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.25rem;
+}
+
+.stats-header p {
+    font-size: 0.875rem;
+    color: #64748b;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.25rem;
+    }
+}
+
+.stat-card {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(226, 232, 240, 0.5);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, currentColor 0%, transparent 100%);
+    opacity: 0.6;
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+    border-color: rgba(226, 232, 240, 0.8);
+}
+
+.stat-card.today {
+    color: #0ea5e9;
+}
+
+.stat-card.week {
+    color: #6366f1;
+}
+
+.stat-card.month {
+    color: #10b981;
+}
+
+.stat-card.total {
+    color: #f59e0b;
+}
+
+.stat-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.stat-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: rgba(0, 0, 0, 0.05);
+    color: currentColor;
+}
+
+.stat-card.today .stat-card-icon {
+    background: rgba(14, 165, 233, 0.1);
+}
+
+.stat-card.week .stat-card-icon {
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.stat-card.month .stat-card-icon {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.stat-card.total .stat-card-icon {
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.stat-card-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: currentColor;
+}
+
+.stat-card-badge.trending {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.stat-card-badge.live {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.stat-card-value {
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-card-label {
+    font-size: 0.875rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.stat-card-change {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 0.75rem;
+    color: #10b981;
+}
+
+.stat-card-change.negative {
+    color: #ef4444;
+}
+
+.stat-card-change i {
+    font-size: 10px;
+}
+
+/* Stats Grid Alternative Layout */
+.stats-grid-compact {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+@media (min-width: 768px) {
+    .stats-grid-compact {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.stat-card-compact {
+    padding: 1rem;
+}
+
+.stat-card-compact .stat-card-value {
+    font-size: 1.875rem;
+}
+
+.stat-card-compact .stat-card-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+}
+
+/* Loading State */
+.stat-card.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.stat-card.loading .stat-card-value,
+.stat-card.loading .stat-card-label {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    color: transparent;
+    border-radius: 4px;
+}
+
+@keyframes loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .stat-card {
+        padding: 1rem;
+    }
+
+    .stat-card-value {
+        font-size: 1.75rem;
+    }
+
+    .stat-card-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+
+    .stats-header h2 {
+        font-size: 1.25rem;
+    }
+}

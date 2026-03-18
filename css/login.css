@@ -1,0 +1,223 @@
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: linear-gradient(135deg, #e0f2fe 0%, #f3e8ff 50%, #f8fafc 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.6;
+            z-index: -1;
+            animation: float 10s infinite ease-in-out;
+        }
+
+        .blob-1 {
+            width: 400px;
+            height: 400px;
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            top: -10%;
+            left: -10%;
+            animation-delay: 0s;
+        }
+
+        .blob-2 {
+            width: 300px;
+            height: 300px;
+            background: linear-gradient(135deg, #f472b6 0%, #a78bfa 100%);
+            bottom: -10%;
+            right: -10%;
+            animation-delay: -5s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -30px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+
+        .glass-container {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.4) 100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            border-top: 2px solid rgba(255, 255, 255, 1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1), inset 0 0 20px rgba(255, 255, 255, 0.5);
+            border-radius: 2rem;
+            width: 100%;
+            max-width: 420px;
+            padding: 2.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 1.25rem;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 1rem 1rem 1rem 3rem;
+            background: rgba(255, 255, 255, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 1rem;
+            font-size: 1rem;
+            font-family: 'Prompt', sans-serif;
+            color: #1e293b;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .input-field:focus {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.1);
+        }
+
+        .input-field.error {
+            border-color: #ef4444;
+            background: rgba(254, 226, 226, 0.5);
+            animation: shake 0.5s ease-in-out;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            pointer-events: none;
+        }
+
+        .input-field:focus + .input-icon {
+            color: #38bdf8;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 0.5rem;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            color: white;
+            border: none;
+            border-radius: 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Prompt', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(56, 189, 248, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .btn-primary.loading::after {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+
+        .error-message {
+            color: #dc2626;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .error-message.show {
+            display: flex;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transform: translateX(400px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+            border-left: 4px solid;
+            max-width: 90vw;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .toast.success { border-left-color: #10b981; }
+        .toast.error { border-left-color: #ef4444; }
+        .toast.warning { border-left-color: #f59e0b; }
+
+        @media (max-width: 480px) {
+            .glass-container {
+                padding: 2rem 1.5rem;
+            }
+            .blob {
+                opacity: 0.4;
+            }
+        }
