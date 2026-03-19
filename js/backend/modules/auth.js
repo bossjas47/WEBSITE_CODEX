@@ -1,3 +1,20 @@
+// ==================== Security Utilities ====================
+// [SECURITY] Hash PIN ด้วย SHA-256 ก่อนบันทึก
+async function hashPin(pin) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(pin);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+}
+
+// [SECURITY] ตรวจสอบ PIN โดยเปรียบเทียบ hash
+async function verifyPinHash(inputPin, storedHash) {
+    const inputHash = await hashPin(inputPin);
+    return inputHash === storedHash;
+}
+
 // ==================== Initialization ====================
 document.addEventListener('DOMContentLoaded', async function() {
     try {
@@ -94,7 +111,10 @@ async function verifyPin() {
     
     if (pin.length !== 6) return;
     
-    if (pin === adminPin) {
+    // [SECURITY] ตรวจสอบ PIN โดยเปรียบเทียบ hash แทนการ compare ตรงๆ
+    const isValid = await verifyPinHash(pin, adminPin);
+    
+    if (isValid) {
         // ผู้ที่เข้าด้วย PIN ถูกต้องจะเป็น Super Admin เสมอ และสามารถจัดการยศได้ทั้งหมด
         currentUserRole = 'super_admin';
         currentUserPermissions = availablePermissions.map(p => p.value);
@@ -120,9 +140,12 @@ async function submitFirstSetup() {
     try {
         const { doc, setDoc, collection, addDoc, serverTimestamp } = window.firestoreFns;
         
+        // [SECURITY] Hash PIN ก่อนบันทึก (ไม่เก็บ plain text)
+        const hashedPin = await hashPin(pin);
+        
         // Save admin pin and mark as super admin setup completed
         await setDoc(doc(db, 'system', 'settings'), {
-            adminPin: pin,
+            adminPin: hashedPin,
             superAdminSetup: true,
             createdAt: new Date().toISOString()
         });
@@ -130,7 +153,7 @@ async function submitFirstSetup() {
         // Create default roles including super_admin
         await createDefaultRoles();
         
-        adminPin = pin;
+        adminPin = hashedPin;
         // คนแรกที่ตั้งค่าจะเป็น Super Admin
         currentUserRole = 'super_admin';
         currentUserPermissions = availablePermissions.map(p => p.value);

@@ -164,34 +164,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // ==================== PAYMENT API SETTINGS ====================
+// [SECURITY WARNING] ไม่ควรเก็บ Payment API Key ใน Firestore หรือ client-side
+// ควรใช้ Environment Variables บน server หรือ Cloud Functions แทน
+// ฟังก์ชันนี้ถูกปิดการใช้งานเพื่อความปลอดภัย
 
 async function loadPaymentSettings() {
-    try {
-        const { doc, getDoc } = window.firestoreFns;
-        const snap = await getDoc(doc(db, 'system', 'payment_settings'));
-        if (!snap.exists()) return;
-        const d = snap.data();
-        if (document.getElementById('ss_paymentApiKey')) document.getElementById('ss_paymentApiKey').value = d.paymentApiKey || '';
-        if (document.getElementById('ss_merchantId')) document.getElementById('ss_merchantId').value = d.merchantId || '';
-    } catch (e) {
-        console.warn('Load payment settings error:', e);
+    // [DISABLED] ไม่โหลด API Key จาก Firestore เพื่อความปลอดภัย
+    console.warn('[SECURITY] Payment API Key should not be loaded from Firestore');
+    
+    // แสดงคำเตือนในหน้าเว็บ
+    const apiKeyInput = document.getElementById('ss_paymentApiKey');
+    if (apiKeyInput) {
+        apiKeyInput.placeholder = 'ใช้ Environment Variables หรือ Cloud Functions แทน';
+        apiKeyInput.disabled = true;
+        apiKeyInput.value = '';
     }
 }
 
 async function savePaymentSettings() {
     if (!checkAccess('manage_settings')) return;
+    
+    // [SECURITY] ไม่บันทึก API Key ลง Firestore
+    console.warn('[SECURITY] Payment API Key will not be saved to Firestore');
+    showToast('คำเตือน: API Key ไม่ควรถูกเก็บใน Firestore กรุณาใช้ Environment Variables หรือ Cloud Functions', 'warning');
+    
+    // บันทึกเฉพาะ merchantId (ไม่ใช่ sensitive data)
     try {
         const { doc, setDoc } = window.firestoreFns;
         const data = {
-            paymentApiKey: document.getElementById('ss_paymentApiKey')?.value || '',
             merchantId: document.getElementById('ss_merchantId')?.value || '',
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            // [NOTE] paymentApiKey ไม่ถูกบันทึกที่นี่
         };
         await setDoc(doc(db, 'system', 'payment_settings'), data, { merge: true });
-        showToast('บันทึกการตั้งค่า API สำเร็จ ✓', 'success');
     } catch (e) {
         console.error('Save payment settings error:', e);
-        showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error');
     }
 }
 
