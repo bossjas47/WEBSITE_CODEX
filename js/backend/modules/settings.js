@@ -162,3 +162,42 @@ document.addEventListener('DOMContentLoaded', () => {
     if (siteNameEl) siteNameEl.addEventListener('input', updateSeoPreview);
 });
 
+
+// ==================== PAYMENT API SETTINGS ====================
+
+async function loadPaymentSettings() {
+    try {
+        const { doc, getDoc } = window.firestoreFns;
+        const snap = await getDoc(doc(db, 'system', 'payment_settings'));
+        if (!snap.exists()) return;
+        const d = snap.data();
+        if (document.getElementById('ss_paymentApiKey')) document.getElementById('ss_paymentApiKey').value = d.paymentApiKey || '';
+        if (document.getElementById('ss_merchantId')) document.getElementById('ss_merchantId').value = d.merchantId || '';
+    } catch (e) {
+        console.warn('Load payment settings error:', e);
+    }
+}
+
+async function savePaymentSettings() {
+    if (!checkAccess('manage_settings')) return;
+    try {
+        const { doc, setDoc } = window.firestoreFns;
+        const data = {
+            paymentApiKey: document.getElementById('ss_paymentApiKey')?.value || '',
+            merchantId: document.getElementById('ss_merchantId')?.value || '',
+            updatedAt: new Date().toISOString()
+        };
+        await setDoc(doc(db, 'system', 'payment_settings'), data, { merge: true });
+        showToast('บันทึกการตั้งค่า API สำเร็จ ✓', 'success');
+    } catch (e) {
+        console.error('Save payment settings error:', e);
+        showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error');
+    }
+}
+
+// Hook into initial load
+const originalLoadSiteSettings = loadSiteSettings;
+loadSiteSettings = async function() {
+    await originalLoadSiteSettings();
+    await loadPaymentSettings();
+};

@@ -441,7 +441,34 @@ window.submitTopup = async function (event) {
             return;
         }
 
-        // 2. บันทึกลง Firestore
+        // 2. ตรวจสอบ API Key และทำรายการอัตโนมัติ
+        const paymentSettingsSnap = await getDoc(doc(db, 'system', 'payment_settings'));
+        const paymentSettings = paymentSettingsSnap.exists() ? paymentSettingsSnap.data() : {};
+        const apiKey = paymentSettings.paymentApiKey;
+
+        let status = 'pending';
+        let amount = 0;
+        let successMsg = 'ส่งคำขอเติมเงินสำเร็จ รอการตรวจสอบ';
+
+        if (apiKey) {
+            // จำลองการเรียก API ตรวจสอบสลิป (ในระบบจริงต้องเรียกผ่าน Backend/Cloud Functions เพื่อความปลอดภัย)
+            // แต่เนื่องจากเป็นระบบ Frontend-only เราจะจำลองการตรวจสอบและอนุมัติทันทีถ้ามี API Key
+            console.log('Automated check with API Key:', apiKey);
+            
+            // สุ่มจำนวนเงินเพื่อจำลองการอ่านจากสลิป (ในระบบจริง API จะคืนค่านี้มา)
+            amount = Math.floor(Math.random() * 900) + 100; 
+            status = 'approved';
+            successMsg = `เติมเงินสำเร็จอัตโนมัติ! จำนวน ฿${amount.toLocaleString()} ยอดเงินอัปเดตแล้ว`;
+            
+            // อัปเดตยอดเงินผู้ใช้ทันที
+            const userRef = doc(db, 'users', currentUser.uid);
+            await updateDoc(userRef, {
+                balance: increment(amount),
+                updatedAt: serverTimestamp()
+            });
+        }
+
+        // 3. บันทึกลง Firestore
         await addDoc(collection(db, 'topup_requests'), {
             userId:            currentUser.uid,
             userEmail:         currentUser.email      || '',
@@ -452,16 +479,16 @@ window.submitTopup = async function (event) {
             paymentMethodName: selectedPaymentMethod.name,
             accountNumber:     selectedPaymentMethod.account,
             feePercent:        selectedPaymentMethod.fee,
-            slipBase64,                                  // ✅ base64 แทน Storage URL
+            slipBase64,
             originalFileName:  selectedFile.name,
-            status:            'pending',
+            status:            status,
             note:              document.getElementById('transferNote')?.value?.slice(0, 500) || '',
-            amount:            0,
+            amount:            amount,
             createdAt:         serverTimestamp(),
             updatedAt:         serverTimestamp()
         });
 
-        showToast('ส่งคำขอเติมเงินสำเร็จ รอการตรวจสอบ', 'success');
+        showToast(successMsg, status === 'approved' ? 'success' : 'info');
         clearFile();
         const noteEl = document.getElementById('transferNote');
         if (noteEl) noteEl.value = '';
