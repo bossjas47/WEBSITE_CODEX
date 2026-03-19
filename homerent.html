@@ -255,7 +255,174 @@
             background: rgba(241, 245, 249, 0.4);
         }
 
-        /* Profile Dropdown & Hamburger styles inherited from common.css */
+        /* Profile Dropdown - Fixed z-index */
+        .profile-dropdown-container {
+            position: relative;
+            z-index: 60;
+        }
+        
+        .glass-dropdown {
+            position: absolute;
+            top: calc(100% + 10px);
+            /* แก้ตรงนี้: จาก right: 0 เป็น left: 0 */
+            left: 0;
+            right: auto;
+            width: 280px;
+            background: rgba(255, 255, 255, 0.98);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+            z-index: 200;
+            transform-origin: top left;
+            transform: scale(0.95) translateY(-10px);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        
+        .glass-dropdown.active {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* สำหรับ mobile ให้ชิดขวาเหมือนเดิมเพื่อไม่ให้ล้นจอซ้าย */
+        @media (max-width: 640px) {
+            .glass-dropdown {
+                left: auto;
+                right: 0;
+                transform-origin: top right;
+                width: 260px;
+            }
+        }
+        
+        /* Hamburger Animation */
+        .hamburger-btn {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            padding: 8px;
+            transition: all 0.3s ease;
+            border-radius: 10px;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .hamburger-btn:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .hamburger-bar {
+            width: 18px;
+            height: 2px;
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            border-radius: 2px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: center;
+        }
+        
+        .hamburger-btn.active .hamburger-bar:nth-child(1) {
+            transform: translateY(7px) rotate(45deg);
+        }
+        
+        .hamburger-btn.active .hamburger-bar:nth-child(2) {
+            opacity: 0;
+            transform: scaleX(0);
+        }
+        
+        .hamburger-btn.active .hamburger-bar:nth-child(3) {
+            transform: translateY(-7px) rotate(-45deg);
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            margin: 2px 8px;
+            color: #475569;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            border-radius: 8px;
+        }
+        
+        .dropdown-item:hover {
+            background: rgba(56, 189, 248, 0.08);
+            color: #0ea5e9;
+        }
+        
+        .logout-item {
+            color: #ef4444 !important;
+            border-top: 1px solid rgba(226, 232, 240, 0.6);
+            margin-top: 4px !important;
+            border-radius: 0 0 8px 8px !important;
+        }
+        
+        .logout-item:hover {
+            background: rgba(239, 68, 68, 0.05) !important;
+        }
+
+        .profile-trigger {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(226, 232, 240, 0.6);
+            border-radius: 100px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            backdrop-filter: blur(10px);
+        }
+        
+        .profile-trigger:hover {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: rgba(56, 189, 248, 0.3);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.1);
+        }
+        
+        .profile-trigger.active {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(56, 189, 248, 0.5);
+        }
+
+        .balance-pill {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: rgba(56, 189, 248, 0.1);
+            color: #0ea5e9;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+        
+        .avatar-glass {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            color: white;
+            border-radius: 50%;
+            font-weight: 700;
+            font-size: 0.875rem;
+            border: 2px solid white;
+            box-shadow: 0 2px 8px rgba(56, 189, 248, 0.3);
+        }
 
         /* Responsive */
         @media (max-width: 640px) {
@@ -368,7 +535,7 @@
         <a href="./index.html" class="navbar-brand text-xl md:text-2xl">PanderX</a>
         <div class="flex items-center gap-2">
             <a href="./login.html" id="loginBtn" class="btn-liquid px-3 py-1.5 text-sm font-medium" style="display:none;">เข้าสู่ระบบ</a>
-            <div id="userProfile" class="profile-dropdown-container hidden" style="display:none;">
+            <div id="userProfile" class="profile-dropdown-container" style="display:none;">
                 <button class="profile-trigger" id="profileTrigger" onclick="window.toggleProfileDropdown(event)">
                     <div class="balance-pill hidden sm:flex">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 9l10 13 10-13-10-7z"/></svg>
@@ -379,7 +546,6 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
-
                 <div class="glass-dropdown" id="profileDropdown">
                     <div class="p-3 border-b border-slate-100">
                         <div class="flex items-center gap-3">
@@ -392,38 +558,19 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="mt-2 pt-2 border-t border-slate-100 flex justify-between items-center">
-                            <span class="text-xs text-slate-500">ยอดคงเหลือ</span>
-                            <span class="balance-pill" id="dropdownBalance">0.00 ฿</span>
-                        </div>
                     </div>
                     <div class="py-1">
-                        <div class="dropdown-item" onclick="window.handleMenuClick('profile')">
-                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            <span>โปรไฟล์ของฉัน</span>
+                        <div class="dropdown-item" onclick="window.location.href='./profile.html'">
+                            <i class="fa-solid fa-user-circle w-5"></i> โปรไฟล์ของฉัน
                         </div>
-                        <div class="dropdown-item" onclick="window.handleMenuClick('orders')">
-                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                            <span>ประวัติการสั่งซื้อ</span>
+                        <div class="dropdown-item" onclick="window.location.href='./orders.html'">
+                            <i class="fa-solid fa-history w-5"></i> ประวัติการสั่งซื้อ
                         </div>
-                        <div class="dropdown-item" onclick="window.handleMenuClick('topup')">
-                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-                            <span>เติมเงิน</span>
+                        <div class="dropdown-item" onclick="window.location.href='./topup.html'">
+                            <i class="fa-solid fa-wallet w-5"></i> เติมเงิน
                         </div>
-                        <div class="dropdown-item" onclick="window.handleMenuClick('settings')">
-                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                            <span>ตั้งค่า</span>
-                        </div>
-                        
-                        <!-- Admin Panel Button (Dropdown) -->
-                        <div id="adminPanelBtn" class="dropdown-item admin-item" onclick="window.location.href='./admin.html'" style="display:none;">
-                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                            <span>Admin Panel</span>
-                        </div>
-                        
                         <div class="dropdown-item logout-item" onclick="window.handleLogout()">
-                            <svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                            <span>ออกจากระบบ</span>
+                            <i class="fa-solid fa-sign-out-alt w-5"></i> ออกจากระบบ
                         </div>
                     </div>
                 </div>

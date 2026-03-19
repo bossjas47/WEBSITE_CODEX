@@ -24,12 +24,6 @@ const bal = data.balance || 0; // ❌ (balance=0 จะ bug)
 ```
 
 ### 4. Profile dropdown ทุกหน้า → class "active" (ไม่ใช่ "show")
-- **Standard Design:** ต้องใช้โครงสร้าง HTML และสไตล์ CSS ที่เหมือนกับ `index.html` เพื่อความสม่ำเสมอ
-- **Online Status:** ต้องแสดงสถานะ "ออนไลน์" ด้วยจุดสีเขียว (`bg-emerald-500`)
-- **Balance Format:** ต้องแสดงยอดเงินในรูปแบบ `0.00 ฿` (ทั้งในปุ่มและใน dropdown)
-- **Menu Items:** ต้องมี โปรไฟล์ของฉัน, ประวัติการสั่งซื้อ, เติมเงิน, ตั้งค่า, และออกจากระบบ
-- **Admin Panel:** ต้องมีปุ่ม `Admin Panel` ซ่อนไว้ และแสดงผลเฉพาะผู้ใช้ที่มีสิทธิ์ `admin` หรือ `owner` เท่านั้น
-- **Functions:** ต้องใช้ `window.toggleProfileDropdown(event)` และ `window.handleMenuClick(page)`
 
 ---
 
