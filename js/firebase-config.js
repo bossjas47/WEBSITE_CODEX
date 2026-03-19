@@ -44,45 +44,23 @@ import {
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. FIREBASE INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════════════════
-// [SECURITY] Firebase Config ถูกย้ายไปไฟล์ /config/firebase-config.json
-// ไฟล์นี้ไม่ถูก push ขึ้น GitHub (อยู่ใน .gitignore)
-// สำหรับ production ควรใช้ Environment Variables ผ่าน build process
-let firebaseConfig = null;
-let app = null;
-
-async function loadFirebaseConfig() {
-    try {
-        // ลองโหลดจากไฟล์ config ภายนอกก่อน
-        const response = await fetch('/config/firebase-config.json');
-        if (response.ok) {
-            firebaseConfig = await response.json();
-            console.log('✅ Firebase config loaded from external file');
-        } else {
-            throw new Error('Config file not found');
-        }
-    } catch (e) {
-        // Fallback: ใช้ config จาก window.__FIREBASE_CONFIG__ (ถูก inject ตอน build)
-        if (window.__FIREBASE_CONFIG__) {
-            firebaseConfig = window.__FIREBASE_CONFIG__;
-            console.log('✅ Firebase config loaded from window object');
-        } else {
-            console.error('❌ Firebase config not found. Please create /config/firebase-config.json');
-            throw new Error('Firebase configuration is missing');
-        }
-    }
-    
-    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-    return app;
-}
-
-// Initialize immediately for backward compatibility
-// ใน production ควรเรียก loadFirebaseConfig() ก่อนใช้งาน
-firebaseConfig = window.__FIREBASE_CONFIG__ || {
-    // [WARNING] ถ้าไม่มี config จากภายนอก ระบบจะไม่ทำงาน
-    // ต้องสร้างไฟล์ /config/firebase-config.json หรือกำหนด window.__FIREBASE_CONFIG__
+// [SECURITY] Firebase Config - ใช้ hardcoded config สำหรับ backward compatibility
+// ใน production ควร override ด้วย window.__FIREBASE_CONFIG__ หรือโหลดจาก external file
+const DEFAULT_FIREBASE_CONFIG = {
+    apiKey: "AIzaSyC450kePwL6FdVXUSVli0bEP3DdnQs0qzU",
+    authDomain: "psl-esport.firebaseapp.com",
+    projectId: "psl-esport",
+    storageBucket: "psl-esport.firebasestorage.app",
+    messagingSenderId: "225108570173",
+    appId: "1:225108570173:web:b6483c02368908f3783a54"
 };
 
-app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+// ใช้ config จากภายนอกถ้ามี (สำหรับ production ที่ต้องการซ่อน config)
+// 1. ลองจาก window.__FIREBASE_CONFIG__ ก่อน (ถูก inject ตอน build)
+// 2. ถ้าไม่มี ใช้ DEFAULT_FIREBASE_CONFIG
+const firebaseConfig = window.__FIREBASE_CONFIG__ || DEFAULT_FIREBASE_CONFIG;
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 export const db   = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
