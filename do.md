@@ -384,3 +384,30 @@ api_call_logs: userId ASC, timestamp DESC
 api_call_logs: tenantId ASC, timestamp DESC
 pending_payments: userId ASC, status ASC
 websites: ownerId ASC, isActive ASC
+
+
+
+<div id="editCodeModal" class="modal-overlay">
+    <div class="modal-content p-6" style="max-width: 500px;">
+        <!-- ... header ... -->
+        
+        <form onsubmit="event.preventDefault(); saveEditCode();" class="space-y-4">
+            <!-- ... รหัสโค้ด, มูลค่า, สถานะ ... -->
+            
+            <!-- ใหม่: แสดงสถิติการใช้งาน -->
+            <div id="editCodeUsageStats" class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <!-- จะถูกใส่ค่าด้วย JS -->
+            </div>
+
+            <!-- ใหม่: แก้ไขจำนวนคน -->
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-2">จำกัดจำนวนคน (ว่าง = ไม่จำกัด)</label>
+                <input type="number" id="editCodeMaxUses" placeholder="ไม่จำกัด" min="1"
+                    class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+                <p class="text-xs text-slate-400 mt-1">ใส่ตัวเลขเช่น 5 = ใช้ได้ 5 คน, เว้นว่าง = ใช้ได้ทุกคน</p>
+            </div>
+
+            <!-- ... วันหมดอายุ, หมายเหตุ, ปุ่ม ... -->
+        </form>
+    </div>
+</div>

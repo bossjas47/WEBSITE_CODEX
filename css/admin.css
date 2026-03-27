@@ -1117,3 +1117,61 @@
             background: rgba(0,0,0,0.15);
             font-size: 0.65rem;
         }
+        /* Redeem Codes Specific Styles */
+.code-input {
+    font-family: 'Inter', monospace;
+    letter-spacing: 0.05em;
+}
+
+.code-status-used {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.code-status-active {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.code-status-expired {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+/* Edit Modal Enhancements */
+#editCodeModal .modal-content {
+    animation: modalSlide 0.3s ease;
+}
+
+@keyframes modalSlide {
+    from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Table Row Hover Effect */
+#rc_tableBody tr {
+    transition: all 0.2s;
+}
+
+#rc_tableBody tr:hover {
+    background: #f8fafc;
+    transform: translateX(4px);
+}
+
+/* Date Input Styling */
+input[type="date"] {
+    position: relative;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    background: transparent;
+    bottom: 0;
+    color: transparent;
+    cursor: pointer;
+    height: auto;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: auto;
+}
