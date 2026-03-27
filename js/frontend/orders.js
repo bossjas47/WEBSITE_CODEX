@@ -18,6 +18,8 @@ import {
 let currentUser       = null;
 let balanceUnsub      = null;
 let ordersUnsub       = null;
+let _lastUid          = null;
+let _authInit         = false;
 
 // ── escapeHtml (ใช้กับ innerHTML เท่านั้น ซึ่งเราพยายามหลีกเลี่ยง) ──
 function escapeHtml(str) {
@@ -26,10 +28,19 @@ function escapeHtml(str) {
 }
 
 // helper
-const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-const show   = (id)    => { const el = document.getElementById(id); if (el) el.style.display = 'block'; };
-const showFl = (id)    => { const el = document.getElementById(id); if (el) el.style.display = 'flex'; };
-const hide   = (id)    => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
+const setTxt = (id, v) => { 
+    const el = document.getElementById(id); 
+    if (el) el.textContent = v; 
+};
+const show = (id, display = 'block') => { 
+    const el = document.getElementById(id); 
+    if (el) el.style.display = display; 
+};
+const showFl = (id) => show(id, 'flex');
+const hide = (id) => { 
+    const el = document.getElementById(id); 
+    if (el) el.style.display = 'none'; 
+};
 
 // ── Format helpers ─────────────────────────────────────────────
 function fmtBalance(raw) {
@@ -48,30 +59,186 @@ function fmtDate(ts) {
     });
 }
 
+// ── Update functions (Optimistic UI) ───────────────────────────
+function updateBalance(raw) {
+    const fmt = fmtBalance(raw);
+    ['userBalance', 'dropdownBalance', 'sidebarBalance'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = fmt;
+    });
+}
+
+function updateName(name) {
+    const clean  = (name || 'ผู้ใช้').trim();
+    const letter = clean.charAt(0).toUpperCase();
+    ['displayName', 'dropdownName', 'sidebarUsername'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = clean;
+    });
+    ['userAvatar', 'dropdownAvatar', 'sidebarAvatar'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = letter;
+    });
+}
+
+// ── Toggle Sidebar ─────────────────────────────────────────────
+window.toggleSidebar = function(e) {
+    if (e) e.stopPropagation();
+    const drawer  = document.getElementById('sidebarDrawer');
+    const overlay = document.getElementById('sidebarOverlay');
+    const btn     = document.getElementById('hamburgerBtn');
+    const isOpen  = drawer.classList.toggle('open');
+    overlay.classList.toggle('open', isOpen);
+    btn.classList.toggle('active', isOpen);
+    btn.setAttribute('aria-expanded', String(isOpen));
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+};
+
+window.closeSidebar = function() {
+    const drawer  = document.getElementById('sidebarDrawer');
+    const overlay = document.getElementById('sidebarOverlay');
+    const btn     = document.getElementById('hamburgerBtn');
+    if (drawer) drawer.classList.remove('open');
+    if (overlay) overlay.classList.remove('open');
+    if (btn) {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-expanded', 'false');
+    }
+    document.body.style.overflow = '';
+};
+
+// ── Toggle Profile Dropdown ────────────────────────────────────
+window.toggleProfileDropdown = function(e) {
+    if (e) e.stopPropagation();
+    const dropdown = document.getElementById('profileDropdown');
+    const trigger  = document.getElementById('profileTrigger');
+    const arrow    = document.getElementById('dropdownArrow');
+    if (!dropdown) return;
+    
+    const isOpen = dropdown.classList.toggle('active');
+    if (trigger) trigger.classList.toggle('active', isOpen);
+    if (arrow) arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0)';
+};
+
+// ── Handle Menu Click ──────────────────────────────────────────
+window.handleMenuClick = function(page) {
+    window.closeSidebar();
+    // Navigation handled by href, this for close sidebar only
+};
+
+// ── Handle Logout ──────────────────────────────────────────────
+window.handleLogout = async function() {
+    try { 
+        await signOut(auth); 
+    } catch (e) { 
+        console.error(e); 
+    }
+    if (balanceUnsub) balanceUnsub();
+    if (ordersUnsub)  ordersUnsub();
+    _lastUid = null;
+    _authInit = false;
+    location.href = './login.html';
+};
+
+// ── Click outside to close ─────────────────────────────────────
+document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('profileDropdown');
+    const trigger  = document.getElementById('profileTrigger');
+    const arrow    = document.getElementById('dropdownArrow');
+    
+    if (dropdown && trigger && !trigger.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.remove('active');
+        trigger.classList.remove('active');
+        if (arrow) arrow.style.transform = 'rotate(0)';
+    }
+});
+
+// ── Escape key ─────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => { 
+    if (e.key === 'Escape') { 
+        window.closeSidebar(); 
+        const dropdown = document.getElementById('profileDropdown');
+        const trigger  = document.getElementById('profileTrigger');
+        const arrow    = document.getElementById('dropdownArrow');
+        if (dropdown) dropdown.classList.remove('active');
+        if (trigger) trigger.classList.remove('active');
+        if (arrow) arrow.style.transform = 'rotate(0)';
+    } 
+});
+
 // ── Auth state ─────────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
+    // Debounce: ไม่รีเซ็ตถ้าเป็น user เดิม
+    if (_authInit && user?.uid === _lastUid) return;
+    _lastUid = user ? user.uid : null;
+    _authInit = true;
+
     hide('authLoading');
 
+    const loginBtn    = document.getElementById('loginBtn');
+    const userProfile = document.getElementById('userProfile');
+    const strip       = document.getElementById('sidebarUserStrip');
+    const guest       = document.getElementById('sidebarAuthGuest');
+    const userSec     = document.getElementById('sidebarAuthUser');
+
     if (!user) {
-        hide('userProfile');
+        if (loginBtn)    loginBtn.style.display    = 'flex';
+        if (userProfile) userProfile.style.display = 'none';
+        if (strip)       strip.style.display       = 'none';
+        if (guest)       guest.style.display       = 'block';
+        if (userSec)     userSec.style.display     = 'none';
+        
+        // Redirect to login
         location.href = `./login.html?redirect=${encodeURIComponent(location.href)}`;
         return;
     }
 
     currentUser = user;
-    showFl('userProfile');
-    hide('loginBtn');
+    
+    // UI Update: Logged in state
+    if (loginBtn)    loginBtn.style.display    = 'none';
+    if (userProfile) userProfile.style.display = 'flex';
+    if (strip)       strip.style.display       = 'flex';
+    if (guest)       guest.style.display       = 'none';
+    if (userSec)     userSec.style.display     = 'block';
 
-    // Optimistic name
+    // Optimistic name from Auth
     const displayName = user.displayName || user.email?.split('@')[0] || 'ผู้ใช้';
-    const initial     = displayName.charAt(0).toUpperCase();
-    ['displayName','dropdownName','sidebarUsername'].forEach(id => setTxt(id, displayName));
-    ['userAvatar','dropdownAvatar','sidebarAvatar'].forEach(id => setTxt(id, initial));
+    updateName(displayName);
+    updateBalance(0); // Optimistic 0 ก่อนโหลดจริง
 
-    // Sidebar show user
-    show('sidebarUserStrip');
-    show('sidebarAuthUser');
-    hide('sidebarAuthGuest');
+    // Load user data from Firestore
+    try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (snap.exists()) {
+            const data = snap.data();
+            updateName(data.displayName || user.displayName || 'ผู้ใช้');
+            updateBalance(data.balance ?? 0); // ✅ ใช้ ?? ไม่ใช่ ||
+            
+            // Check Admin role
+            const role = String(data.role || '').toLowerCase();
+            if (role === 'admin' || role === 'super_admin' || role === 'owner') {
+                ['adminPanelBtn', 'sidebarAdminBtn'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'flex';
+                });
+            }
+        } else {
+            // Ghost user repair - สร้าง doc ใหม่ถ้าไม่มี
+            await setDoc(doc(db, 'users', user.uid), {
+                uid:         user.uid,
+                email:       user.email || '',
+                displayName: user.displayName || user.email?.split('@')[0] || 'ผู้ใช้',
+                balance:     0,
+                role:        'user',
+                createdAt:   serverTimestamp()
+            });
+            updateBalance(0);
+        }
+    } catch (err) {
+        console.error('User load error:', err);
+        updateBalance(0);
+    }
 
     // Start listeners
     startBalanceListener(user.uid);
@@ -86,10 +253,7 @@ function startBalanceListener(uid) {
     if (balanceUnsub) balanceUnsub();
     balanceUnsub = onSnapshot(doc(db, 'users', uid), (snap) => {
         const bal = snap.exists() ? (snap.data().balance ?? 0) : 0;   // ✅ ??
-        const fmt = fmtBalance(bal);
-        setTxt('userBalance',     fmt);
-        setTxt('dropdownBalance', fmt);
-        setTxt('sidebarBalance',  fmt);
+        updateBalance(bal);
     }, err => console.error('[orders] balance snapshot:', err));
 }
 
@@ -97,7 +261,6 @@ function startBalanceListener(uid) {
 function startOrdersListener(uid) {
     if (ordersUnsub) ordersUnsub();
 
-    // ลอง with orderBy (ต้องการ Firestore composite index)
     let q;
     try {
         q = query(
@@ -112,7 +275,7 @@ function startOrdersListener(uid) {
     ordersUnsub = onSnapshot(q, (snap) => {
         let orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // client-sort fallback ถ้าไม่มี orderBy
+        // client-sort fallback
         orders.sort((a, b) => {
             const ta = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
             const tb = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
@@ -210,15 +373,12 @@ function buildOrderCard(order) {
     };
     const st = statusCfg[order.status] || statusCfg.pending;
 
-    // Determine order type
     const isWebsite = !!(order.subdomain || order.websiteId || order.type === 'create' || order.type === 'renew');
     const isTopup   = order.type === 'topup';
 
-    // Card element
     const card = document.createElement('div');
     card.className = `order-card ${order.status || 'pending'} ${isWebsite ? 'website' : ''}`;
 
-    // ── Icon wrap ─────────────────────────────────────────────
     const iconWrap = document.createElement('div');
     iconWrap.className = `order-icon-wrap ${isWebsite ? 'type-website' : isTopup ? 'type-topup' : 'type-product'}`;
     const iconEl = document.createElement('i');
@@ -226,11 +386,9 @@ function buildOrderCard(order) {
     iconEl.style.cssText = `color:${isWebsite ? '#0ea5e9' : isTopup ? '#f59e0b' : '#10b981'};font-size:1.3rem;`;
     iconWrap.appendChild(iconEl);
 
-    // ── Body ──────────────────────────────────────────────────
     const body = document.createElement('div');
     body.className = 'order-body';
 
-    // Top row: name + status badge
     const topRow = document.createElement('div');
     topRow.className = 'order-top-row';
 
@@ -247,12 +405,13 @@ function buildOrderCard(order) {
     dotEl.style.color = st.color;
     const badgeTxt = document.createElement('span');
     badgeTxt.textContent = st.label;
-    badge.appendChild(dotEl); badge.appendChild(badgeTxt);
+    badge.appendChild(dotEl); 
+    badge.appendChild(badgeTxt);
     badge.style.color = st.color;
 
-    topRow.appendChild(nameEl); topRow.appendChild(badge);
+    topRow.appendChild(nameEl); 
+    topRow.appendChild(badge);
 
-    // Meta row
     const meta = document.createElement('div');
     meta.className = 'order-meta';
 
@@ -263,7 +422,8 @@ function buildOrderCard(order) {
         i.className = iconClass;
         const t = document.createElement('span');
         t.textContent = text;
-        item.appendChild(i); item.appendChild(t);
+        item.appendChild(i); 
+        item.appendChild(t);
         meta.appendChild(item);
     };
 
@@ -272,7 +432,6 @@ function buildOrderCard(order) {
     if (order.type === 'renew') addMeta('fa-solid fa-rotate fa-fw', 'ต่ออายุ');
     if (order.type === 'create') addMeta('fa-solid fa-plus fa-fw', 'สร้างใหม่');
 
-    // Footer row: domain + amount
     const footer = document.createElement('div');
     footer.className = 'order-footer';
 
@@ -284,7 +443,8 @@ function buildOrderCard(order) {
         globeI.style.cssText = 'font-size:.72rem;flex-shrink:0;';
         const domTxt = document.createElement('span');
         domTxt.textContent = order.domain || `${order.subdomain}.panderx.xyz`;
-        domainEl.appendChild(globeI); domainEl.appendChild(domTxt);
+        domainEl.appendChild(globeI); 
+        domainEl.appendChild(domTxt);
     } else if (order.orderId) {
         domainEl.style.cssText = 'font-size:.75rem;color:#94a3b8;font-family:monospace;';
         domainEl.textContent = `#${order.orderId || order.id}`.slice(0, 18);
@@ -294,13 +454,13 @@ function buildOrderCard(order) {
     amtEl.className = 'order-amount';
     amtEl.textContent = '฿' + fmtAmount(order.totalAmount);
 
-    footer.appendChild(domainEl); footer.appendChild(amtEl);
+    footer.appendChild(domainEl); 
+    footer.appendChild(amtEl);
 
     body.appendChild(topRow);
     body.appendChild(meta);
     body.appendChild(footer);
 
-    // ── Inner layout ─────────────────────────────────────────
     const inner = document.createElement('div');
     inner.className = 'order-card-inner';
     inner.appendChild(iconWrap);
@@ -350,7 +510,8 @@ function buildEmptyState(filter) {
         const linkIcon = document.createElement('i');
         linkIcon.className = 'fa-solid fa-globe';
         const linkTxt = document.createTextNode('เช่าเว็บไซต์เลย');
-        link.appendChild(linkIcon); link.appendChild(linkTxt);
+        link.appendChild(linkIcon); 
+        link.appendChild(linkTxt);
         wrap.appendChild(link);
     }
 
@@ -380,17 +541,12 @@ function showErrorState() {
     btn.textContent = 'ลองใหม่';
     btn.style.cssText = 'padding:10px 22px;background:linear-gradient(135deg,#0ea5e9,#6366f1);color:white;border:none;border-radius:10px;font-weight:700;font-size:.875rem;cursor:pointer;font-family:Prompt;margin-top:16px;';
     btn.onclick = () => location.reload();
-    wrap.appendChild(iconBg); wrap.appendChild(title); wrap.appendChild(sub); wrap.appendChild(btn);
+    wrap.appendChild(iconBg); 
+    wrap.appendChild(title); 
+    wrap.appendChild(sub); 
+    wrap.appendChild(btn);
     list.appendChild(wrap);
 }
-
-// ── Logout ─────────────────────────────────────────────────────
-window.handleLogout = async function () {
-    try { await signOut(auth); } catch (e) { console.error(e); }
-    if (balanceUnsub) balanceUnsub();
-    if (ordersUnsub)  ordersUnsub();
-    location.href = './index.html';
-};
 
 // ── Site identity ──────────────────────────────────────────────
 async function loadSiteIdentity() {
@@ -398,10 +554,44 @@ async function loadSiteIdentity() {
         const snap = await getDoc(doc(db, 'system', 'site_settings'));
         if (!snap.exists()) return;
         const name = snap.data().siteName || 'PanderX';
+        const letter = name.charAt(0).toUpperCase();
+
         setTxt('navbarBrand',     name);
         setTxt('sidebarSiteName', name);
-        setTxt('sidebarLogoIcon', name.charAt(0).toUpperCase());
+        setTxt('sidebarLogoIcon', letter);
         setTxt('siteFooterText',  `© ${new Date().getFullYear()} ${name}`);
         document.title = `ประวัติการสั่งซื้อ | ${name}`;
     } catch (e) { /* ใช้ default */ }
 }
+
+// ── Filter state ───────────────────────────────────────────────
+window.currentFilter = 'all';
+window.allOrders = [];
+window.setFilter = function(f, btn) {
+    window.currentFilter = f;
+    document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (typeof window.renderOrders === 'function') window.renderOrders();
+};
+
+// ── Toast ─────────────────────────────────────────────────────
+window.showToast = function(msg, type = 'info') {
+    const c = document.getElementById('toastContainer');
+    if (!c) return;
+    const colors = { success:'#10b981', error:'#ef4444', info:'#0ea5e9', warning:'#f59e0b' };
+    const icons  = { success:'fa-circle-check', error:'fa-circle-xmark', info:'fa-circle-info', warning:'fa-triangle-exclamation' };
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.style.borderLeftColor = colors[type] || colors.info;
+    const icon = document.createElement('i');
+    icon.className = `fa-solid ${icons[type] || 'fa-circle-info'}`;
+    icon.style.cssText = `color:${colors[type] || colors.info};font-size:.95rem;flex-shrink:0;`;
+    const span = document.createElement('span');
+    span.textContent = msg;
+    span.style.cssText = 'font-weight:600;color:#1e293b;font-size:.875rem;';
+    t.appendChild(icon);
+    t.appendChild(span);
+    c.appendChild(t);
+    requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3200);
+};
