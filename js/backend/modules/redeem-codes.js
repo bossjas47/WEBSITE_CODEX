@@ -4,7 +4,10 @@
 //  Firestore: redeem_codes/{code}
 // ============================================================
 
-import { auth } from '../../firebase-config.js';
+// Import Firebase (ถ้าใช้ module)
+const FB = 'https://www.gstatic.com/firebasejs/10.7.1';
+import { doc, deleteDoc, updateDoc, getDoc } from `${FB}/firebase-firestore.js`;
+import { getAuth } from `${FB}/firebase-auth.js`;
 
 // ─── Generate random code ─────────────────────────────────────────────────────
 function _generateCode(length = 12) {
@@ -19,6 +22,7 @@ function _generateCode(length = 12) {
 
 // ─── Get current admin name ───────────────────────────────────────────────────
 function _getAdminName() {
+    const auth = getAuth();
     const user = auth.currentUser;
     if (user) {
         return user.displayName || user.email || 'Admin';
@@ -30,7 +34,7 @@ function _getAdminName() {
 
 // ─── Create Custom Code (Single) ───────────────────────────────────────────────
 window.createCustomCode = async function() {
-    if (!checkAccess('manage_topup')) return;
+    if (typeof checkAccess === 'function' && !checkAccess('manage_topup')) return;
 
     const codeInput    = document.getElementById('rc_customCode')?.value.trim().toUpperCase();
     const amount       = parseFloat(document.getElementById('rc_customAmount')?.value) || 0;
@@ -45,18 +49,18 @@ window.createCustomCode = async function() {
     if (amount <= 0) { showToast('กรุณากรอกมูลค่า', 'error'); return; }
     if (maxUses < 1) { showToast('จำนวนครั้งใช้งานต้องมากกว่า 0', 'error'); return; }
 
-    const btn = document.querySelector('[onclick="createCustomCode()"]');
+    const btn = document.querySelector('[onclick="window.createCustomCode()"]');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังสร้าง...'; }
 
     try {
-        const { collection, addDoc, serverTimestamp, getDocs, query, where } = window.firestoreFns;
+        const { collection, addDoc, serverTimestamp, getDocs, query, where } = window.firestoreFns || window;
         
         // Check duplicate code
         const dupQuery = query(collection(db, 'redeem_codes'), where('code', '==', codeInput));
         const dupSnap = await getDocs(dupQuery);
         if (!dupSnap.empty) {
             showToast('รหัสโค้ดนี้มีอยู่แล้วในระบบ', 'error');
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-plus mr-2"></i>สร้างโค้ด'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-plus mr-2"></i>สร้างโค้ดนี้'; }
             return;
         }
 
@@ -109,7 +113,7 @@ window.createCustomCode = async function() {
 
 // ─── Create batch codes ───────────────────────────────────────────────────────
 window.createBatchCodes = async function() {
-    if (!checkAccess('manage_topup')) return;
+    if (typeof checkAccess === 'function' && !checkAccess('manage_topup')) return;
 
     const qty        = parseInt(document.getElementById('rc_batchQty')?.value)  || 1;
     const amount     = parseFloat(document.getElementById('rc_batchAmount')?.value) || 0;
@@ -119,11 +123,11 @@ window.createBatchCodes = async function() {
     if (amount <= 0) { showToast('กรุณากรอกมูลค่า', 'error'); return; }
     if (qty < 1 || qty > 100) { showToast('จำนวนโค้ด 1-100 ใบ', 'error'); return; }
 
-    const btn = document.querySelector('[onclick="createBatchCodes()"]');
+    const btn = document.querySelector('[onclick="window.createBatchCodes()"]');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังสร้าง...'; }
 
     try {
-        const { collection, addDoc, serverTimestamp, getDocs, query, where } = window.firestoreFns;
+        const { collection, addDoc, serverTimestamp, getDocs, query, where } = window.firestoreFns || window;
         const created = [];
         const adminName = _getAdminName();
 
@@ -169,7 +173,6 @@ window.createBatchCodes = async function() {
         showToast(`สร้างโค้ดสำเร็จ ${qty} ใบ ✓`, 'success');
         console.log('[redeem-codes] Batch created:', created);
 
-        // แสดงโค้ดที่สร้างใหม่
         if (qty <= 10) {
             setTimeout(() => {
                 if (confirm(`โค้ดที่สร้างใหม่:\n${created.map(c => c.code).join('\n')}\n\nคัดลอกทั้งหมด?`)) {
@@ -191,7 +194,7 @@ window.createBatchCodes = async function() {
 // ─── Load codes table ─────────────────────────────────────────────────────────
 window.loadRedeemCodes = async function() {
     try {
-        const { collection, getDocs, query, orderBy } = window.firestoreFns;
+        const { collection, getDocs, query, orderBy } = window.firestoreFns || window;
         const snap = await getDocs(query(collection(db, 'redeem_codes'), orderBy('createdAt', 'desc')));
 
         const codes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -234,8 +237,8 @@ window.loadRedeemCodes = async function() {
                 ? new Date(c.expiresAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })
                 : '<span class="text-slate-400">ไม่มีวันหมดอายุ</span>';
 
-            const usedText = c.isUsed || c.usedCount > 0
-                ? `<span class="text-xs text-slate-600">${c.usedBy || 'หลายคน'} (${c.usedCount || 1}/${c.maxUses || 1})</span>`
+            const usedText = c.isUsed
+                ? `<span class="text-xs text-slate-600">${c.usedBy || '-'} (${c.usedCount || 1}/${c.maxUses || 1})</span>`
                 : `<span class="text-slate-400">${c.usedCount || 0}/${c.maxUses || 1} ครั้ง</span>`;
 
             const canEdit = !isFullyUsed && !c.isUsed;
@@ -259,11 +262,11 @@ window.loadRedeemCodes = async function() {
                 <td class="py-3.5 px-5">
                     <div class="flex gap-2">
                         ${canEdit ? `
-                        <button onclick="openEditCodeModal('${c.id}')"
+                        <button onclick="window.openEditCodeModal('${c.id}')"
                             class="p-2 bg-sky-50 text-sky-500 hover:bg-sky-100 rounded-lg transition-colors" title="แก้ไข">
                             <i class="fa-solid fa-pen-to-square"></i>
                         </button>` : ''}
-                        <button onclick="deleteRedeemCode('${c.id}', '${c.code}')"
+                        <button onclick="window.deleteRedeemCode('${c.id}', '${c.code}')"
                             class="p-2 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="ลบ">
                             <i class="fa-solid fa-trash-can"></i>
                         </button>
@@ -282,7 +285,7 @@ window.loadRedeemCodes = async function() {
 // ─── Edit Code Modal ──────────────────────────────────────────────────────────
 window.openEditCodeModal = async function(docId) {
     try {
-        const { doc, getDoc } = window.firestoreFns;
+        const { doc, getDoc } = window.firestoreFns || window;
         const snap = await getDoc(doc(db, 'redeem_codes', docId));
         if (!snap.exists()) return;
 
@@ -316,7 +319,6 @@ window.saveCodeEdit = async function() {
     }
 
     try {
-        const { doc, updateDoc } = window.firestoreFns;
         await updateDoc(doc(db, 'redeem_codes', docId), {
             code,
             amount,
@@ -325,7 +327,7 @@ window.saveCodeEdit = async function() {
         });
 
         showToast('แก้ไขข้อมูลสำเร็จ', 'success');
-        closeEditCodeModal();
+        window.closeEditCodeModal();
         loadRedeemCodes();
     } catch (e) {
         showToast('แก้ไขไม่สำเร็จ: ' + e.message, 'error');
@@ -334,11 +336,10 @@ window.saveCodeEdit = async function() {
 
 // ─── Delete code ──────────────────────────────────────────────────────────────
 window.deleteRedeemCode = async function(docId, code) {
-    if (!checkAccess('manage_topup')) return;
+    if (typeof checkAccess === 'function' && !checkAccess('manage_topup')) return;
     if (!confirm(`ลบโค้ด "${code}" ?`)) return;
 
     try {
-        const { doc, deleteDoc } = window.firestoreFns;
         await deleteDoc(doc(db, 'redeem_codes', docId));
         showToast('ลบโค้ดแล้ว', 'info');
         loadRedeemCodes();
