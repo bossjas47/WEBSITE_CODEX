@@ -63,7 +63,18 @@ function switchTab(tabName, element) {
     if (tabName === 'products') setTimeout(() => loadProducts(), 100);
     if (tabName === 'site-settings')  setTimeout(() => loadSiteSettings(), 100);
     if (tabName === 'redeem-codes')   setTimeout(() => loadRedeemCodes(), 100);
-    if (tabName === 'topup')          { setTimeout(() => loadTopupRequests(), 100); setTimeout(() => loadFeeSettings(), 200); }
+    if (tabName === 'topup') {
+        setTimeout(() => {
+            loadTopupRequests();
+            if (typeof loadFeeSettings === 'function') loadFeeSettings();
+            if (typeof loadTrueMoneySettings === 'function') loadTrueMoneySettings();
+        }, 100);
+    }
+    if (tabName === 'settings') {
+        setTimeout(() => {
+            if (typeof loadTrueMoneySettings === 'function') loadTrueMoneySettings();
+        }, 100);
+    }
     if (tabName === 'fake-stats') setTimeout(() => loadFakeStats(), 100);
 }
 

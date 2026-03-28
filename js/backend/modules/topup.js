@@ -340,3 +340,79 @@ async function rejectTopup() {
     }
 }
 
+
+// ── TrueMoney Voucher Settings ─────────────────────────────────
+
+/**
+ * โหลดเบอร์ TrueMoney สำหรับรับซองอั่งเปา
+ * ดึงจาก system/payment_settings หรือ websites/{websiteId} ตาม context
+ */
+async function loadTrueMoneySettings() {
+    try {
+        const { doc, getDoc } = window.firestoreFns;
+        
+        // ดึงจาก system config ก่อน (สำหรับระบบรวมศูนย์)
+        const snap = await getDoc(doc(db, 'system', 'payment_settings'));
+        
+        if (snap.exists()) {
+            const data = snap.data();
+            const phoneInput = document.getElementById('tm_voucherPhone');
+            const apiKeyInput = document.getElementById('ss_paymentApiKey');
+            const merchantInput = document.getElementById('ss_merchantId');
+            
+            if (phoneInput) phoneInput.value = data.truemoneyPhone || '';
+            if (apiKeyInput) apiKeyInput.value = data.paymentApiKey || '';
+            if (merchantInput) merchantInput.value = data.merchantId || '';
+        }
+    } catch (e) {
+        console.error('[topup] loadTrueMoneySettings:', e);
+        showToast('โหลดการตั้งค่า TrueMoney ไม่สำเร็จ', 'error');
+    }
+}
+
+/**
+ * บันทึกเบอร์ TrueMoney และ Payment Settings
+ */
+async function savePaymentSettings() {
+    if (typeof checkAccess === 'function' && !checkAccess('manage_settings')) {
+        showToast('คุณไม่มีสิทธิ์จัดการตั้งค่า', 'error');
+        return;
+    }
+    
+    try {
+        const { doc, setDoc, serverTimestamp } = window.firestoreFns;
+        
+        const phone = document.getElementById('tm_voucherPhone')?.value.trim();
+        const apiKey = document.getElementById('ss_paymentApiKey')?.value.trim();
+        const merchantId = document.getElementById('ss_merchantId')?.value.trim();
+        
+        // Validate phone number (ตัวเลข 10 หลัก)
+        if (phone && !/^\d{10}$/.test(phone.replace(/-/g, ''))) {
+            showToast('กรุณากรอกเบอร์โทรศัพท์ 10 หลักให้ถูกต้อง', 'error');
+            return;
+        }
+        
+        await setDoc(doc(db, 'system', 'payment_settings'), {
+            truemoneyPhone: phone || null,
+            paymentApiKey: apiKey || null,
+            merchantId: merchantId || null,
+            updatedAt: serverTimestamp(),
+            updatedBy: typeof currentUser !== 'undefined' ? currentUser?.uid : 'admin'
+        }, { merge: true });
+        
+        showToast('บันทึกการตั้งค่าสำเร็จ', 'success');
+        
+        // อัปเดต preview ถ้ามี
+        if (typeof updateFeePreviews === 'function') {
+            updateFeePreviews();
+        }
+        
+    } catch (e) {
+        console.error('[topup] savePaymentSettings:', e);
+        showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error');
+    }
+}
+
+// ── Exports for global access ─────────────────────────────────
+window.loadTrueMoneySettings = loadTrueMoneySettings;
+window.savePaymentSettings = savePaymentSettings;
