@@ -12,6 +12,28 @@
 
     <link rel="stylesheet" href="css/admin.css">
 
+    <!-- FIX: เพิ่ม CSS ควบคุมการแสดงผล Section -->
+    <style>
+        /* ซ่อนทุก section โดย default */
+        .section {
+            display: none !important;
+        }
+        
+        /* แสดงเฉพาะ section ที่มี class active */
+        .section.active {
+            display: block !important;
+        }
+        
+        /* สำหรับ mobile responsive ภายใน section */
+        .section.active > div {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
 </head>
 <body class="antialiased text-slate-800">
 
@@ -609,241 +631,164 @@
                 </div>
             </div>
 
-
-<!-- ══ Redeem Codes Section ═══════════════════════════════════════ -->
-<div id="redeem-codes" class="section">
-    <div class="glass-panel p-6 mb-6">
-        <div class="section-header">
-            <h3 class="section-title">
-                <div class="section-icon bg-gradient-to-br from-orange-400 to-amber-500">
-                    <i class="fa-solid fa-ticket"></i>
-                </div>
-                ระบบโค้ดเติมเงิน (Redeem Codes)
-            </h3>
-        </div>
-
-        <!-- Stats -->
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-            <div class="stat-card bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
-                <div class="text-slate-600 text-2xl font-bold" id="rc_totalCodes">0</div>
-                <div class="text-slate-700 text-sm font-medium">โค้ดทั้งหมด</div>
-            </div>
-            <div class="stat-card bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
-                <div class="text-emerald-600 text-2xl font-bold" id="rc_activeCodes">0</div>
-                <div class="text-emerald-700 text-sm font-medium">ใช้ได้</div>
-            </div>
-            <div class="stat-card bg-gradient-to-br from-red-50 to-rose-50 border-red-200">
-                <div class="text-red-600 text-2xl font-bold" id="rc_expiredCodes">0</div>
-                <div class="text-red-700 text-sm font-medium">หมดอายุ</div>
-            </div>
-            <div class="stat-card bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
-                <div class="text-slate-600 text-2xl font-bold" id="rc_usedCodes">0</div>
-                <div class="text-slate-700 text-sm font-medium">ใช้แล้ว</div>
-            </div>
-            <div class="stat-card bg-gradient-to-br from-sky-50 to-indigo-50 border-sky-200">
-                <div class="text-sky-600 text-2xl font-bold" id="rc_totalValue">฿0</div>
-                <div class="text-sky-700 text-sm font-medium">มูลค่าคงเหลือ</div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- สร้างโค้ดเดี่ยว (ตั้งเองได้) -->
-            <div class="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-5 border border-orange-200">
-                <h4 class="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-plus-circle text-orange-500"></i> 
-                    สร้างโค้ดเดี่ยว (กำหนดรหัสเองได้)
-                </h4>
-                <div class="space-y-3">
-                    <div>
-                        <label class="text-xs font-semibold text-slate-500 mb-1 block">รหัสโค้ด <span class="text-orange-500">*</span></label>
-                        <input type="text" id="rc_singleCode" placeholder="เช่น PROMO-2024 หรือ XXXX-XXXX" 
-                            class="w-full px-3 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:outline-none bg-white font-mono font-bold uppercase"
-                            oninput="this.value = this.value.toUpperCase()">
-                        <p class="text-xs text-slate-400 mt-1">A-Z, 0-9, ขีด (-) ได้ ความยาว 8-20 ตัว</p>
+            <!-- ══ Redeem Codes Section ═══════════════════════════════════════ -->
+            <div id="redeem-codes" class="section">
+                <div class="glass-panel p-6 mb-6">
+                    <div class="section-header">
+                        <h3 class="section-title">
+                            <div class="section-icon bg-gradient-to-br from-orange-400 to-amber-500">
+                                <i class="fa-solid fa-ticket"></i>
+                            </div>
+                            ระบบโค้ดเติมเงิน (Redeem Codes)
+                        </h3>
                     </div>
-                    <!-- ใน <div class="bg-gradient-to-br from-orange-50..."> (สร้างโค้ดเดี่ยว) -->
-<div class="grid grid-cols-2 gap-3">
-    <div>
-        <label class="text-xs font-semibold text-slate-500 mb-1 block">มูลค่า (฿) <span class="text-orange-500">*</span></label>
-        <input type="number" id="rc_singleAmount" value="100" min="1"
-            class="w-full px-3 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:outline-none bg-white font-bold">
-    </div>
-    <!-- ใหม่: จำนวนคน -->
-    <div>
-        <label class="text-xs font-semibold text-slate-500 mb-1 block">จำกัดจำนวนคน (ว่าง = ไม่จำกัด)</label>
-        <input type="number" id="rc_singleMaxUses" placeholder="ไม่จำกัด" min="1"
-            class="w-full px-3 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:outline-none bg-white">
-        <p class="text-xs text-orange-400 mt-1">เว้นว่าง = ใช้ได้ไม่จำกัด</p>
-    </div>
-</div>
 
-                        <div>
-                            <label class="text-xs font-semibold text-slate-500 mb-1 block">วันหมดอายุ</label>
-                            <input type="date" id="rc_singleExpiry"
-                                class="w-full px-3 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:outline-none bg-white text-sm">
+                    <!-- Stats -->
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                        <div class="stat-card bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
+                            <div class="text-slate-600 text-2xl font-bold" id="rc_totalCodes">0</div>
+                            <div class="text-slate-700 text-sm font-medium">โค้ดทั้งหมด</div>
+                        </div>
+                        <div class="stat-card bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+                            <div class="text-emerald-600 text-2xl font-bold" id="rc_activeCodes">0</div>
+                            <div class="text-emerald-700 text-sm font-medium">ใช้ได้</div>
+                        </div>
+                        <div class="stat-card bg-gradient-to-br from-red-50 to-rose-50 border-red-200">
+                            <div class="text-red-600 text-2xl font-bold" id="rc_expiredCodes">0</div>
+                            <div class="text-red-700 text-sm font-medium">หมดอายุ</div>
+                        </div>
+                        <div class="stat-card bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
+                            <div class="text-slate-600 text-2xl font-bold" id="rc_usedCodes">0</div>
+                            <div class="text-slate-700 text-sm font-medium">ใช้แล้ว</div>
+                        </div>
+                        <div class="stat-card bg-gradient-to-br from-sky-50 to-indigo-50 border-sky-200">
+                            <div class="text-sky-600 text-2xl font-bold" id="rc_totalValue">฿0</div>
+                            <div class="text-sky-700 text-sm font-medium">มูลค่าคงเหลือ</div>
                         </div>
                     </div>
-                    <div>
-                        <label class="text-xs font-semibold text-slate-500 mb-1 block">หมายเหตุ</label>
-                        <input type="text" id="rc_singleNote" placeholder="เช่น โปรโมชั่นสิ้นเดือน"
-                            class="w-full px-3 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:outline-none bg-white">
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- สร้างโค้ดเดี่ยว (ตั้งเองได้) -->
+                        <div class="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-5 border border-orange-200">
+                            <h4 class="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-plus-circle text-orange-500"></i> 
+                                สร้างโค้ดเดี่ยว (กำหนดรหัสเองได้)
+                            </h4>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-500 mb-1 block">รหัสโค้ด <span class="text-orange-500">*</span></label>
+                                    <input type="text" id="rc_singleCode" placeholder="เช่น PROMO-2024 หรือ XXXX-XXXX" 
+                                        class="w-full px-3 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:outline-none bg-white font-mono font-bold uppercase"
+                                        oninput="this.value = this.value.toUpperCase()">
+                                    <p class="text-xs text-slate-400 mt-1">A-Z, 0-9, ขีด (-) ได้ ความยาว 8-20 ตัว</p>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="text-xs font-semibold text-slate-500 mb-1 block">มูลค่า (฿) <span class="text-orange-500">*</span></label>
+                                        <input type="number" id="rc_singleAmount" value="100" min="1"
+                                            class="w-full px-3 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:outline-none bg-white font-bold">
+                                    </div>
+                                    <!-- ใหม่: จำนวนคน -->
+                                    <div>
+                                        <label class="text-xs font-semibold text-slate-500 mb-1 block">จำกัดจำนวนคน (ว่าง = ไม่จำกัด)</label>
+                                        <input type="number" id="rc_singleMaxUses" placeholder="ไม่จำกัด" min="1"
+                                            class="w-full px-3 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:outline-none bg-white">
+                                        <p class="text-xs text-orange-400 mt-1">เว้นว่าง = ใช้ได้ไม่จำกัด</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-500 mb-1 block">วันหมดอายุ</label>
+                                    <input type="date" id="rc_singleExpiry"
+                                        class="w-full px-3 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:outline-none bg-white text-sm">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-500 mb-1 block">หมายเหตุ</label>
+                                    <input type="text" id="rc_singleNote" placeholder="เช่น โปรโมชั่นสิ้นเดือน"
+                                        class="w-full px-3 py-2.5 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:outline-none bg-white">
+                                </div>
+                                <button onclick="createSingleCode()" id="btnCreateSingle" 
+                                    class="w-full py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-plus"></i>สร้างโค้ด
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- สร้างหลายโค้ด (สุ่ม) -->
+                        <div class="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-5 border border-slate-200">
+                            <h4 class="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-layer-group text-slate-500"></i> 
+                                สร้างโค้ดหลายใบ (สุ่มอัตโนมัติ)
+                            </h4>
+                            <div class="grid grid-cols-2 gap-3 mb-3">
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-500 mb-1 block">จำนวนโค้ด</label>
+                                    <input type="number" id="rc_batchQty" value="5" min="1" max="100"
+                                        class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl focus:border-slate-400 focus:outline-none bg-white font-bold">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-500 mb-1 block">มูลค่า (฿)</label>
+                                    <input type="number" id="rc_batchAmount" value="100" min="1"
+                                        class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl focus:border-slate-400 focus:outline-none bg-white font-bold">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-500 mb-1 block">หมดอายุ (วัน)</label>
+                                    <input type="number" id="rc_batchExpiry" placeholder="ไม่หมดอายุ" min="1"
+                                        class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl focus:border-slate-400 focus:outline-none bg-white">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-500 mb-1 block">จำกัดคน/โค้ด (ว่าง = ไม่จำกัด)</label>
+                                    <input type="number" id="rc_batchMaxUses" placeholder="ไม่จำกัด" min="1"
+                                        class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl focus:border-slate-400 focus:outline-none bg-white">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-500 mb-1 block">หมายเหตุ</label>
+                                <input type="text" id="rc_batchNote" placeholder="แคมเปญ..."
+                                    class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl focus:border-slate-400 focus:outline-none bg-white">
+                            </div>
+                            <button onclick="createBatchCodes()" 
+                                class="w-full py-2.5 bg-slate-600 text-white rounded-xl font-semibold hover:bg-slate-700 transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>สร้างหลายโค้ด
+                            </button>
+                        </div>
                     </div>
-                    <button onclick="createSingleCode()" id="btnCreateSingle" 
-                        class="w-full py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-plus"></i>สร้างโค้ด
-                    </button>
-                </div>
-            </div>
 
-            <!-- สร้างหลายโค้ด (สุ่ม) -->
-            <div class="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-5 border border-slate-200">
-                <h4 class="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-layer-group text-slate-500"></i> 
-                    สร้างโค้ดหลายใบ (สุ่มอัตโนมัติ)
-                </h4>
-                <!-- ใน <div class="bg-gradient-to-br from-slate-50..."> (สร้างหลายโค้ด) -->
-<div class="grid grid-cols-2 gap-3 mb-3">
-    <div>
-        <label class="text-xs font-semibold text-slate-500 mb-1 block">จำนวนโค้ด</label>
-        <input type="number" id="rc_batchQty" value="5" min="1" max="100"
-            class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl focus:border-slate-400 focus:outline-none bg-white font-bold">
-    </div>
-    <div>
-        <label class="text-xs font-semibold text-slate-500 mb-1 block">มูลค่า (฿)</label>
-        <input type="number" id="rc_batchAmount" value="100" min="1"
-            class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl focus:border-slate-400 focus:outline-none bg-white font-bold">
-    </div>
-    <div>
-        <label class="text-xs font-semibold text-slate-500 mb-1 block">หมดอายุ (วัน)</label>
-        <input type="number" id="rc_batchExpiry" placeholder="ไม่หมดอายุ" min="1"
-            class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl focus:border-slate-400 focus:outline-none bg-white">
-    </div>
-    <!-- ใหม่: จำนวนคน -->
-    <div>
-        <label class="text-xs font-semibold text-slate-500 mb-1 block">จำกัดคน/โค้ด (ว่าง = ไม่จำกัด)</label>
-        <input type="number" id="rc_batchMaxUses" placeholder="ไม่จำกัด" min="1"
-            class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl focus:border-slate-400 focus:outline-none bg-white">
-    </div>
-</div>
-
-                    <div>
-                        <label class="text-xs font-semibold text-slate-500 mb-1 block">หมายเหตุ</label>
-                        <input type="text" id="rc_batchNote" placeholder="แคมเปญ..."
-                            class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl focus:border-slate-400 focus:outline-none bg-white">
+                    <!-- Table -->
+                    <div class="mt-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="font-bold text-slate-700 flex items-center gap-2">
+                                <i class="fa-solid fa-list text-slate-400"></i> 
+                                รายการโค้ดทั้งหมด
+                                <span class="text-xs font-normal text-slate-400">(ดับเบิ้ลคลิกที่แถวเพื่อแก้ไข)</span>
+                            </h4>
+                            <button onclick="loadRedeemCodes()" class="text-sm text-slate-500 hover:text-slate-700">
+                                <i class="fa-solid fa-rotate mr-1"></i>รีเฟรช
+                            </button>
+                        </div>
+                        
+                        <div class="table-container bg-slate-50/50 rounded-2xl border border-slate-200/60 overflow-hidden">
+                            <table class="w-full min-w-[800px]">
+                                <thead class="bg-white border-b border-slate-200">
+                                    <tr>
+                                        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">รหัสโค้ด</th>
+                                        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">มูลค่า</th>
+                                        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">สถานะ</th>
+                                        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">จำกัดจำนวน</th>
+                                        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">ใช้โดย</th>
+                                        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">วันหมดอายุ</th>
+                                        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">หมายเหตุ</th>
+                                        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rc_tableBody" class="divide-y divide-slate-100 bg-white">
+                                    <tr><td colspan="8" class="text-center py-8 text-slate-400">...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-                <button onclick="createBatchCodes()" 
-                    class="w-full py-2.5 bg-slate-600 text-white rounded-xl font-semibold hover:bg-slate-700 transition-all flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i>สร้างหลายโค้ด
-                </button>
             </div>
-        </div>
-
-        <!-- Table -->
-        <div class="mt-6">
-            <div class="flex items-center justify-between mb-4">
-                <h4 class="font-bold text-slate-700 flex items-center gap-2">
-                    <i class="fa-solid fa-list text-slate-400"></i> 
-                    รายการโค้ดทั้งหมด
-                    <span class="text-xs font-normal text-slate-400">(ดับเบิ้ลคลิกที่แถวเพื่อแก้ไข)</span>
-                </h4>
-                <button onclick="loadRedeemCodes()" class="text-sm text-slate-500 hover:text-slate-700">
-                    <i class="fa-solid fa-rotate mr-1"></i>รีเฟรช
-                </button>
-            </div>
-            
-            <div class="table-container bg-slate-50/50 rounded-2xl border border-slate-200/60 overflow-hidden">
-                <table class="w-full min-w-[800px]">
-                    <thead class="bg-white border-b border-slate-200">
-    <tr>
-        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">รหัสโค้ด</th>
-        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">มูลค่า</th>
-        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">สถานะ</th>
-        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">จำกัดจำนวน</th> <!-- ใหม่ -->
-        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">ใช้โดย</th>
-        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">วันหมดอายุ</th>
-        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">หมายเหตุ</th>
-        <th class="text-left py-4 px-4 font-bold text-slate-700 text-sm uppercase">จัดการ</th>
-    </tr>
-</thead>
-<tbody id="rc_tableBody" class="divide-y divide-slate-100 bg-white">
-    <!-- colspan เปลี่ยนเป็น 8 -->
-    <tr><td colspan="8" class="text-center py-8 text-slate-400">...</td></tr>
-</tbody>
-
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Edit Code Modal -->
-<div id="editCodeModal" class="modal-overlay">
-    <div class="modal-content p-6" style="max-width: 500px;">
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <i class="fa-solid fa-pen-to-square text-sky-500"></i>
-                แก้ไขรหัสโค้ด
-            </h3>
-            <button onclick="closeEditCodeModal()" class="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600">
-                <i class="fa-solid fa-xmark text-xl"></i>
-            </button>
-        </div>
-        
-        <form onsubmit="event.preventDefault(); saveEditCode();" class="space-y-4">
-            <input type="hidden" id="editCodeId">
-            
-            <div>
-                <label class="block text-sm font-bold text-slate-700 mb-2">รหัสโค้ด <span class="text-red-500">*</span></label>
-                <input type="text" id="editCodeValue" required
-                    class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 font-mono font-bold uppercase"
-                    oninput="this.value = this.value.toUpperCase()">
-                <p class="text-xs text-slate-400 mt-1">เปลี่ยนรหัสได้ แต่ต้องไม่ซ้ำกับโค้ดอื่น</p>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-2">มูลค่า (฿) <span class="text-red-500">*</span></label>
-                    <input type="number" id="editCodeAmount" required min="1"
-                        class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 font-bold text-emerald-600">
-                </div>
-                <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-2">สถานะ</label>
-                    <select id="editCodeStatus" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
-                        <option value="active">ใช้ได้</option>
-                        <option value="used">ใช้แล้ว</option>
-                    </select>
-                </div>
-            </div>
-
-            <div>
-                <label class="block text-sm font-bold text-slate-700 mb-2">วันหมดอายุ</label>
-                <input type="date" id="editCodeExpiry"
-                    class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
-                <p class="text-xs text-slate-400 mt-1">เว้นว่างไว้ถ้าไม่ต้องการให้หมดอายุ</p>
-            </div>
-
-            <div>
-                <label class="block text-sm font-bold text-slate-700 mb-2">หมายเหตุ</label>
-                <input type="text" id="editCodeNote"
-                    class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
-            </div>
-
-            <div class="flex gap-3 pt-4 border-t border-slate-200">
-                <button type="button" onclick="deleteFromEditModal()" class="px-4 py-3 bg-red-50 text-red-500 rounded-xl font-semibold hover:bg-red-100 transition-colors flex items-center gap-2">
-                    <i class="fa-solid fa-trash"></i>ลบ
-                </button>
-                <button type="button" onclick="closeEditCodeModal()" class="flex-1 py-3 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200 transition-colors">
-                    ยกเลิก
-                </button>
-                <button type="submit" id="btnSaveEditCode" class="flex-1 py-3 bg-gradient-to-r from-sky-400 to-indigo-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-save"></i>บันทึก
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
+            <!-- End Redeem Codes Section -->
 
             <!-- 🪙 SPECIAL CURRENCY SECTION - Updated with Icons -->
             <div id="special-currency" class="section">
@@ -1308,37 +1253,15 @@
             <!-- ══ Security Settings ══ -->
             <div id="settings" class="section">
                 <!-- Payment API Settings -->
-                <!-- Payment API Settings -->
                 <div class="glass-panel p-6 max-w-2xl mx-auto mb-6">
                     <h3 class="section-title mb-6">
                         <div class="section-icon bg-gradient-to-br from-amber-400 to-orange-600">
                             <i class="fa-solid fa-key"></i>
                         </div>
-                        ตั้งค่าการรับเงิน & API
+                        ตั้งค่า API เติมเงินอัตโนมัติ
                     </h3>
                     
                     <div class="space-y-6">
-                        <!-- TrueMoney Voucher Phone -->
-                        <div class="bg-gradient-to-br from-red-50 to-pink-50 p-6 rounded-2xl border border-red-200">
-                            <div class="mb-4">
-                                <label class="block text-sm font-bold text-red-800 mb-2 flex items-center gap-2">
-                                    <i class="fa-solid fa-gift text-red-500"></i>
-                                    เบอร์ TrueMoney สำหรับรับซองอั่งเปา <span class="text-red-500">*</span>
-                                </label>
-                                <input type="tel" id="tm_voucherPhone" placeholder="เช่น 0812345678" maxlength="10"
-                                    class="w-full px-4 py-3 border-2 border-red-200 rounded-xl focus:border-red-400 focus:outline-none bg-white font-mono text-lg tracking-wider">
-                                <p class="text-xs text-red-600 mt-2 flex items-center gap-1">
-                                    <i class="fa-solid fa-circle-info"></i>
-                                    เบอร์นี้จะใช้รับเงินอัตโนมัติจากซองอั่งเปาเมื่อลูกค้ากดเติมเงิน
-                                </p>
-                            </div>
-                            
-                            <div class="flex items-center gap-2 p-3 bg-white/60 rounded-xl border border-red-100">
-                                <i class="fa-solid fa-shield-halved text-emerald-500"></i>
-                                <span class="text-xs text-slate-600">ระบบจะตรวจสอบซองซ้ำและรับเงินเข้ากระเป๋าอัตโนมัติ</span>
-                            </div>
-                        </div>
-
                         <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                             <div class="mb-4">
                                 <label class="block text-sm font-bold text-slate-700 mb-2">API Key (สำหรับตรวจสอบยอดเงิน)</label>
@@ -1355,7 +1278,7 @@
                         </div>
 
                         <button onclick="savePaymentSettings()" class="btn-modern w-full bg-gradient-to-r from-amber-500 to-orange-600">
-                            <i class="fa-solid fa-floppy-disk mr-2"></i>บันทึกการตั้งค่าทั้งหมด
+                            <i class="fa-solid fa-floppy-disk mr-2"></i>บันทึกการตั้งค่า API
                         </button>
                     </div>
                 </div>
@@ -1412,6 +1335,8 @@
         </main>
     </div>
 
+    <!-- [MODALS - เก็บไว้ทั้งหมดเหมือนเดิม] -->
+    
     <!-- Website Order Detail Modal -->
     <div id="websiteOrderModal" class="modal-overlay">
         <div class="modal-content modal-xl p-6">
@@ -1613,7 +1538,7 @@
                     </div>
                     <div>
                         <h3 class="text-xl font-bold text-slate-800" id="detailUserName">User Name</h3>
-                        <p class="text-sm text-slate-500" id="detailUserEmail"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6510160017250008040c094b060a08">[email&#160;protected]</a></p>
+                        <p class="text-sm text-slate-500" id="detailUserEmail">user@example.com</p>
                         <div class="flex gap-2 mt-1">
                             <span class="text-xs bg-white px-2 py-1 rounded-full border border-slate-200 text-slate-600 font-medium">
                                 ยอดเงิน: <span class="text-sky-600 font-bold" id="detailUserBalance">฿0</span>

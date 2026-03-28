@@ -7,101 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        *{margin:0;padding:0;box-sizing:border-box;font-family:'Prompt',sans-serif;}
-        html{scroll-behavior:smooth;}
-        body{background:linear-gradient(135deg,#f0f9ff 0%,#f3e8ff 50%,#f8fafc 100%);color:#1e293b;min-height:100vh;}
-
-        /* Navbar - self-contained */
-        .nav-wrap{position:fixed;top:10px;left:12px;right:12px;z-index:100;}
-        nav.navbar{background:rgba(255,255,255,0.9);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.7);box-shadow:0 8px 32px -8px rgba(0,0,0,.10);border-radius:16px;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;}
-        .navbar-brand{font-size:1.2rem;font-weight:800;background:linear-gradient(135deg,#0ea5e9,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none;}
-
-        /* Glass Cards */
-        .glass-card{background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.8);box-shadow:0 4px 20px -4px rgba(0,0,0,.06);transition:all .3s;}
-        .glass-card:hover{transform:translateY(-3px);box-shadow:0 16px 36px -10px rgba(14,165,233,.18);}
-
-        /* Balance Hero */
-        .balance-hero{background:linear-gradient(135deg,#0ea5e9 0%,#6366f1 50%,#8b5cf6 100%);position:relative;overflow:hidden;}
-        .balance-hero::before{content:'';position:absolute;top:-50%;right:-20%;width:500px;height:500px;background:radial-gradient(circle,rgba(255,255,255,.13) 0%,transparent 70%);pointer-events:none;}
-
-        /* Payment Card */
-        .payment-card{background:white;border:2px solid #e2e8f0;border-radius:18px;padding:20px;cursor:pointer;transition:all .3s;}
-        .payment-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px -5px rgba(0,0,0,.10);}
-        .payment-card.active{border-color:#0ea5e9;background:linear-gradient(135deg,rgba(14,165,233,.05),rgba(99,102,241,.05));box-shadow:0 0 0 3px rgba(14,165,233,.12);}
-
-        /* Upload Zone */
-        .upload-zone{border:2px dashed #cbd5e1;border-radius:18px;padding:44px 20px;text-align:center;cursor:pointer;background:#f8fafc;transition:all .3s;}
-        .upload-zone:hover{border-color:#38bdf8;background:rgba(56,189,248,.05);}
-        .upload-zone.has-file{border-color:#10b981;background:rgba(16,185,129,.05);}
-
-        /* Buttons */
-        .btn-primary{background:linear-gradient(135deg,#0ea5e9,#6366f1);color:white;border:none;border-radius:14px;padding:16px 28px;font-weight:700;font-size:15px;cursor:pointer;width:100%;transition:all .3s;box-shadow:0 4px 15px rgba(14,165,233,.3);position:relative;overflow:hidden;}
-        .btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 25px rgba(14,165,233,.4);}
-        .btn-primary:disabled{opacity:.55;cursor:not-allowed;}
-        .btn-primary.loading::after{content:'';position:absolute;width:18px;height:18px;top:50%;left:50%;margin:-9px 0 0 -9px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;}
-
-        /* Copy Button */
-        .copy-btn{padding:8px 14px;background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.2);border-radius:8px;color:#0ea5e9;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .2s;}
-        .copy-btn:hover{background:rgba(14,165,233,.2);}
-
-        /* Avatar & Profile */
-        .avatar-glass{width:36px;height:36px;min-width:36px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px;border:2px solid white;box-shadow:0 2px 8px rgba(56,189,248,.3);flex-shrink:0;}
-        .balance-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;background:linear-gradient(135deg,rgba(56,189,248,.10),rgba(129,140,248,.10));border:1px solid rgba(56,189,248,.2);border-radius:20px;font-size:12px;color:#0284c7;font-weight:600;white-space:nowrap;}
-        
-        /* Profile Dropdown - ใช้ class "active" ตาม SKILL.md */
-        .profile-trigger{display:flex;align-items:center;gap:8px;padding:5px 5px 5px 14px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.8);border-radius:100px;cursor:pointer;transition:all .3s;}
-        .profile-trigger:hover,.profile-trigger.active{background:rgba(255,255,255,.98);box-shadow:0 4px 18px rgba(56,189,248,.2);}
-        
-        .glass-dropdown{position:absolute;top:calc(100% + 12px);right:0;width:270px;background:rgba(255,255,255,.97);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.9);border-radius:20px;box-shadow:0 24px 48px -12px rgba(0,0,0,.16);opacity:0;visibility:hidden;transform:translateY(-8px) scale(.96);transition:all .22s cubic-bezier(.34,1.56,.64,1);z-index:200;}
-        .glass-dropdown.active{opacity:1;visibility:visible;transform:translateY(0) scale(1);}
-        .glass-dropdown::before{content:'';position:absolute;top:-7px;right:22px;width:14px;height:14px;background:rgba(255,255,255,.97);transform:rotate(45deg);border-left:1px solid rgba(255,255,255,1);border-top:1px solid rgba(255,255,255,1);}
-        
-        .dropdown-item{display:flex;align-items:center;gap:11px;padding:11px 14px;margin:3px 7px;color:#475569;font-size:13.5px;font-weight:500;cursor:pointer;border-radius:11px;transition:all .2s;text-decoration:none;}
-        .dropdown-item:hover{background:rgba(14,165,233,.08);color:#0ea5e9;}
-        .dropdown-icon{width:18px;height:18px;color:#94a3b8;flex-shrink:0;transition:color .2s;}
-        .dropdown-item:hover .dropdown-icon{color:#0ea5e9;}
-        .logout-item:hover{background:rgba(239,68,68,.07);color:#ef4444;}
-        .logout-item:hover .dropdown-icon{color:#ef4444;}
-
-        /* Toast - ใช้ style.display ควบคุม ไม่ใช่ class hidden */
-        .toast-container{position:fixed;top:20px;right:16px;z-index:300;display:flex;flex-direction:column;gap:8px;}
-        .toast{padding:14px 20px;background:white;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.13);display:flex;align-items:center;gap:10px;transform:translateX(420px);transition:transform .35s cubic-bezier(.4,0,.2,1);border-left:4px solid #94a3b8;min-width:260px;}
-        .toast.show{transform:translateX(0);}
-        .toast.success{border-left-color:#10b981;}
-        .toast.error{border-left-color:#ef4444;}
-        .toast.info{border-left-color:#0ea5e9;}
-
-        /* History & Status */
-        .history-item{padding:14px 16px;background:white;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px;}
-        .status-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;}
-        .empty-state{text-align:center;padding:48px 24px;color:#94a3b8;}
-
-        /* Tabs */
-        .topup-tabs{display:flex;gap:3px;background:#f1f5f9;border-radius:14px;padding:4px;width:fit-content;}
-        .topup-tab{padding:9px 20px;border-radius:10px;font-weight:600;font-size:14px;color:#64748b;background:transparent;border:none;cursor:pointer;transition:all .2s;}
-        .topup-tab.active{background:white;color:#0ea5e9;box-shadow:0 2px 8px rgba(14,165,233,.15);}
-        .topup-tab:hover:not(.active){color:#334155;}
-
-        /* Redeem */
-        .redeem-input{width:100%;padding:14px 18px;border:2px solid #e2e8f0;border-radius:14px;font-family:'Prompt',sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:.18em;text-align:center;text-transform:uppercase;transition:all .25s;outline:none;background:white;}
-        .redeem-input:focus{border-color:#fb923c;box-shadow:0 0 0 4px rgba(251,146,60,.13);}
-        .btn-redeem{background:linear-gradient(135deg,#f97316,#f59e0b);color:white;border:none;border-radius:14px;padding:15px;font-weight:700;font-size:15px;cursor:pointer;width:100%;transition:all .3s;box-shadow:0 4px 15px rgba(249,115,22,.3);font-family:'Prompt',sans-serif;}
-        .btn-redeem:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 24px rgba(249,115,22,.4);}
-        .btn-redeem:disabled{opacity:.55;cursor:not-allowed;}
-
-        /* Spinner (ใช้แทน skeleton) */
-        @keyframes spin{to{transform:rotate(360deg);}}
-        .spinner{width:22px;height:22px;border:2px solid #bae6fd;border-top-color:#0ea5e9;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px;}
-        
-        @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-        .anim{animation:slideUp .5s ease forwards;}
-
-        @media(max-width:640px){
-            .glass-dropdown{position:fixed;top:80px;left:10px;right:10px;width:auto;}
-            .glass-dropdown::before{right:38px;}
-        }
-    </style>
+    <!-- แยก CSS ตามคำขอ แต่ยังคงใช้ Tailwind CDN สำหรับ utility -->
+    <link rel="stylesheet" href="css/topup.css">
 </head>
 <body>
 
@@ -112,20 +19,21 @@
 <nav class="navbar">
     <a href="./index.html" class="navbar-brand" id="navbarBrand">PanderX</a>
     <div style="position:relative;">
-        <!-- ใช้ style.display ควบคุม ไม่ใช่ class hidden -->
+        <!-- ใช้ style.display ควบคุม ไม่ใช่ class hidden ตาม SKILL.md -->
         <div id="authLoading" style="display:block;"><div style="width:90px;height:34px;border-radius:20px;background:#e2e8f0;"></div></div>
-        <div id="userProfile" class="profile-dropdown-container" style="display:none;">
-            <button class="profile-trigger" id="profileTrigger">
+        <div id="userProfile" class="profile-dropdown-container" style="display:none;position:relative;">
+            <button class="profile-trigger" id="profileTrigger" onclick="toggleProfileDropdown(event)">
                 <span class="hidden sm:block text-sm font-semibold text-slate-700 max-w-[90px] truncate" id="displayName">User</span>
                 <div class="balance-pill">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 9l10 13 10-13-10-7z"/></svg>
-                    <span id="userBalance">0</span>
+                    <span id="userBalance">0.00</span>
                 </div>
                 <div class="avatar-glass" id="userAvatar">U</div>
                 <svg width="14" height="14" id="dropdownArrow" fill="none" stroke="#94a3b8" viewBox="0 0 24 24" stroke-width="2" style="transition:transform .3s;flex-shrink:0;">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
+            <!-- Dropdown ใช้ class "active" ตาม SKILL.md -->
             <div class="glass-dropdown" id="profileDropdown">
                 <div style="padding:14px;border-bottom:1px solid #f1f5f9;">
                     <div style="display:flex;align-items:center;gap:10px;">
@@ -139,11 +47,11 @@
                     </div>
                     <div style="margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;">
                         <span style="font-size:.75rem;color:#94a3b8;">ยอดคงเหลือ</span>
-                        <div class="balance-pill"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 9l10 13 10-13-10-7z"/></svg><span id="dropdownBalance">0</span></div>
+                        <div class="balance-pill"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 9l10 13 10-13-10-7z"/></svg><span id="dropdownBalance">0.00</span></div>
                     </div>
                 </div>
                 <div style="padding:6px 0;">
-                    <a href="./index.html" class="dropdown-item"><svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg><span>หน้าแรก</span></a>
+                    <a href="./index.html" class="dropdown-item"><svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4m-6 0h6"/></svg><span>หน้าแรก</span></a>
                     <a href="./profile.html" class="dropdown-item"><svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z"/></svg><span>โปรไฟล์</span></a>
                     <a href="./orders.html" class="dropdown-item"><svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span>คำสั่งซื้อ</span></a>
                     <div class="dropdown-item logout-item" onclick="handleLogout()"><svg class="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg><span>ออกจากระบบ</span></div>
@@ -172,10 +80,13 @@
         </div>
     </div>
 
-    <!-- Tabs -->
+    <!-- Tabs - เพิ่ม Tab ซองอั่งเปา -->
     <div class="topup-tabs mb-6 anim" style="animation-delay:.08s;">
         <button id="tabSlip" onclick="switchTab('slip')" class="topup-tab active">
             <i class="fa-solid fa-receipt mr-2"></i>โอนเงิน / สลิป
+        </button>
+        <button id="tabVoucher" onclick="switchTab('voucher')" class="topup-tab">
+            <i class="fa-solid fa-gift mr-2"></i>ซองอั่งเปา
         </button>
         <button id="tabRedeem" onclick="switchTab('redeem')" class="topup-tab">
             <i class="fa-solid fa-ticket mr-2"></i>แลกโค้ด
@@ -199,7 +110,6 @@
                         </div>
                     </div>
                     <div id="paymentMethodsList" class="space-y-4">
-                        <!-- Spinner แทน skeleton -->
                         <div style="display:flex;align-items:center;justify-content:center;padding:32px;color:#94a3b8;gap:10px;">
                             <div class="spinner"></div>
                             กำลังโหลดข้อมูล...
@@ -277,17 +187,80 @@
                             <i class="fa-solid fa-rotate"></i>
                         </button>
                     </div>
-                    <div id="historyList" style="max-height:580px;overflow-y:auto;padding-right:4px;">
-                        <!-- Spinner แทน skeleton -->
+                    <div id="historyList" class="hide-scrollbar" style="max-height:580px;overflow-y:auto;padding-right:4px;">
                         <div style="display:flex;align-items:center;justify-content:center;padding:32px;color:#94a3b8;gap:10px;">
                             <div class="spinner"></div>
                             กำลังโหลด...
                         </div>
                     </div>
-                    <div id="loadMoreContainer" style="display:none;margin-top:14px;text-align:center;">
-                        <button onclick="loadMoreHistory()" style="width:100%;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#64748b;font-family:Prompt;font-weight:600;font-size:.875rem;cursor:pointer;">
-                            โหลดเพิ่มเติม
-                        </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TrueMoney Voucher Panel (ใหม่) ===== -->
+    <div id="panelVoucher" style="display:none;">
+        <div style="max-width:480px;margin:0 auto;">
+            <div class="glass-card rounded-3xl p-8 anim" style="animation-delay:.1s;">
+                <div class="voucher-card">
+                    <div class="voucher-icon">
+                        <i class="fa-solid fa-gift"></i>
+                    </div>
+                    <h2 style="font-size:1.4rem;font-weight:800;color:#1e293b;">เติมเงินด้วยซองอั่งเปา</h2>
+                    <p style="color:#94a3b8;font-size:.875rem;margin-top:6px;">วางลิงก์ซองอั่งเปา TrueMoney เงินจะเข้าระบบอัตโนมัติ</p>
+                </div>
+
+                <div style="margin-top:24px;">
+                    <label style="display:block;font-size:.85rem;font-weight:700;color:#374151;margin-bottom:8px;">ลิงก์ซองอั่งเปา <span style="color:#ef4444;">*</span></label>
+                    <input type="text" 
+                           id="voucherInput" 
+                           class="voucher-input" 
+                           placeholder="https://gift.truemoney.com/campaign/?v=..."
+                           style="text-transform:none;letter-spacing:normal;text-align:left;font-size:0.95rem;">
+                    <p style="font-size:.75rem;color:#94a3b8;margin-top:6px;display:flex;align-items:center;gap:4px;">
+                        <i class="fa-solid fa-shield-halved text-emerald-500"></i>
+                        ลิงก์ต้องขึ้นต้นด้วย https://gift.truemoney.com/
+                    </p>
+                </div>
+
+                <button onclick="submitVoucher()" id="voucherBtn" class="btn-truemoney" style="margin-top:20px;">
+                    <span id="voucherBtnText"><i class="fa-solid fa-check mr-2"></i>ยืนยันการเติมเงิน</span>
+                    <span id="voucherBtnLoading" style="display:none;">
+                        <i class="fa-solid fa-circle-notch fa-spin mr-2"></i>กำลังดำเนินการ...
+                    </span>
+                </button>
+
+                <div id="voucherResult" style="display:none;margin-top:20px;"></div>
+
+                <div style="margin-top:24px;padding:16px;background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;">
+                    <h4 style="font-weight:700;color:#c2410c;margin-bottom:10px;font-size:.9rem;display:flex;align-items:center;gap:7px;">
+                        <i class="fa-solid fa-circle-info"></i>วิธีใช้งาน
+                    </h4>
+                    <ul style="font-size:.82rem;color:#c2410c;line-height:1.9;list-style:none;">
+                        <li style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px;">
+                            <span style="color:#f97316;font-weight:700;">1.</span>
+                            <span>คัดลอกลิงก์ซองอั่งเปาจากแอพ TrueMoney Wallet</span>
+                        </li>
+                        <li style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px;">
+                            <span style="color:#f97316;font-weight:700;">2.</span>
+                            <span>วางลิงก์ในช่องด้านบน แล้วกด "ยืนยันการเติมเงิน"</span>
+                        </li>
+                        <li style="display:flex;align-items:flex-start;gap:6px;">
+                            <span style="color:#f97316;font-weight:700;">3.</span>
+                            <span>เงินจะเข้าบัญชีทันทีหลังตรวจสอบ (ไม่ต้องรอ Admin)</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div style="margin-top:22px;">
+                    <h4 style="font-weight:700;color:#475569;margin-bottom:10px;font-size:.9rem;display:flex;align-items:center;gap:7px;">
+                        <i class="fa-solid fa-clock-rotate-left" style="color:#94a3b8;"></i>ประวัติซองอั่งเปา
+                    </h4>
+                    <div id="voucherHistoryList" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">
+                        <div style="text-align:center;color:#94a3b8;padding:16px;font-size:.85rem;">
+                            <div class="spinner" style="border-color:#e2e8f0;border-top-color:#ef4444;margin-right:6px;"></div>
+                            กำลังโหลด...
+                        </div>
                     </div>
                 </div>
             </div>
@@ -341,7 +314,6 @@
                         <i class="fa-solid fa-clock-rotate-left" style="color:#94a3b8;"></i>ประวัติการแลกโค้ด
                     </h4>
                     <div id="redeemHistoryList" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">
-                        <!-- Spinner แทน skeleton -->
                         <div style="text-align:center;color:#94a3b8;padding:16px;font-size:.85rem;">
                             <div class="spinner" style="border-color:#e2e8f0;border-top-color:#fb923c;margin-right:6px;"></div>
                             กำลังโหลด...
@@ -359,38 +331,61 @@
 </footer>
 
 <script>
-// Tab + Dropdown (non-module) - ใช้ style.display ตาม SKILL.md
+// Tab Switcher - ใช้ style.display ตาม SKILL.md (ไม่ใช้ classList.hidden)
 function switchTab(t){
-    document.getElementById('panelSlip').style.display   = t==='slip'   ? 'block' : 'none';
-    document.getElementById('panelRedeem').style.display = t==='redeem' ? 'block' : 'none';
-    document.getElementById('tabSlip').classList.toggle('active',   t==='slip');
-    document.getElementById('tabRedeem').classList.toggle('active', t==='redeem');
+    // Panels
+    document.getElementById('panelSlip').style.display    = t==='slip'    ? 'block' : 'none';
+    document.getElementById('panelVoucher').style.display = t==='voucher' ? 'block' : 'none';
+    document.getElementById('panelRedeem').style.display  = t==='redeem'  ? 'block' : 'none';
+    
+    // Tabs
+    document.getElementById('tabSlip').classList.toggle('active',    t==='slip');
+    document.getElementById('tabVoucher').classList.toggle('active', t==='voucher');
+    document.getElementById('tabRedeem').classList.toggle('active',  t==='redeem');
+    
+    // Load data when switching to voucher tab
+    if(t === 'voucher') {
+        setTimeout(() => {
+            if(window.loadVoucherHistory) window.loadVoucherHistory();
+        }, 100);
+    }
 }
 
-// Dropdown ใช้ class "active" ตาม SKILL.md (ไม่ใช่ "show")
-document.addEventListener('DOMContentLoaded',()=>{
-    const trigger=document.getElementById('profileTrigger');
-    const dropdown=document.getElementById('profileDropdown');
-    const arrow=document.getElementById('dropdownArrow');
-    if(trigger){
-        trigger.addEventListener('click',e=>{
-            e.stopPropagation();
-            const isOpen=dropdown.classList.contains('active');
-            dropdown.classList.toggle('active',!isOpen);
-            trigger.classList.toggle('active',!isOpen);
-            arrow.style.transform=isOpen?'rotate(0)':'rotate(180deg)';
-        });
+// Dropdown Toggle - ใช้ class "active" ตาม SKILL.md
+function toggleProfileDropdown(e) {
+    if(e) e.stopPropagation();
+    const dropdown = document.getElementById('profileDropdown');
+    const trigger = document.getElementById('profileTrigger');
+    const arrow = document.getElementById('dropdownArrow');
+    
+    const isOpen = dropdown.classList.contains('active');
+    
+    if(isOpen) {
+        dropdown.classList.remove('active');
+        trigger.classList.remove('active');
+        arrow.style.transform = 'rotate(0)';
+    } else {
+        dropdown.classList.add('active');
+        trigger.classList.add('active');
+        arrow.style.transform = 'rotate(180deg)';
     }
-    document.addEventListener('click',()=>{
-        dropdown?.classList.remove('active');
-        trigger?.classList.remove('active');
-        if(arrow) arrow.style.transform='rotate(0)';
-    });
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('profileDropdown');
+    const trigger = document.getElementById('profileTrigger');
+    const arrow = document.getElementById('dropdownArrow');
+    
+    if(dropdown && trigger && !trigger.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.remove('active');
+        trigger.classList.remove('active');
+        if(arrow) arrow.style.transform = 'rotate(0)';
+    }
 });
 </script>
 
-<!-- ไม่เปลี่ยน path ตามที่สั่ง: js/frontend/topup.js -->
-
+<!-- ใช้ type="module" ตาม SKILL.md -->
 <script type="module" src="js/frontend/topup.js"></script>
 </body>
 </html>
