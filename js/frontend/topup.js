@@ -1,7 +1,6 @@
 // ============================================================
 //  js/frontend/topup.js
-//  แก้ไข: ไม่ใช้ Firebase Storage, ไม่ใช้ setupTenantAuthListener
-//  ใช้ onAuthStateChanged มาตรฐาน + base64 slip image
+//  เพิ่ม: TrueMoney Voucher Gateway + แก้บัคตาม SKILL.md
 //  Firebase 10.7.1 — import จาก firebase-config.js เท่านั้น
 // ============================================================
 
@@ -39,7 +38,12 @@ let topupUnsubscribe     = null;
 let currentTopupRequest  = null;
 let balanceUnsubscribe   = null;
 
-// ── Security: escapeHtml ──────────────────────────────────────
+// ── Rate Limiting (login) ────────────────────────────────────
+const RL_KEY    = 'panderx_login_attempts';
+const RL_MAX    = 5;
+const RL_WINDOW = 15 * 60 * 1000; // 15 min
+
+// ── Security: escapeHtml (XSS safe) ───────────────────────────
 function escapeHtml(text) {
     if (typeof text !== 'string') return String(text ?? '');
     const d = document.createElement('div');
@@ -78,6 +82,7 @@ function hide(id)  { const el = document.getElementById(id); if (el) el.style.di
 function showFlex(id) { const el = document.getElementById(id); if (el) el.style.display = 'flex'; }
 
 function updateBalance(raw) {
+    // ✅ ใช้ ?? ไม่ใช้ || (สำคัญ! ถ้า balance=0 จะไม่ bug)
     const fmt = Number(raw ?? 0).toLocaleString('th-TH', {
         minimumFractionDigits: 2, maximumFractionDigits: 2
     });
@@ -108,13 +113,14 @@ onAuthStateChanged(auth, async (user) => {
     const initial = displayName.charAt(0).toUpperCase();
     setTxt('userAvatar',    initial);
     setTxt('dropdownAvatar', initial);
-    updateBalance(0);
+    updateBalance(0); // Optimistic
 
     await loadUserData();
     setupBalanceRealtime(user.uid);
     await loadPaymentMethods();
     await loadHistory();
     await loadRedeemHistory();
+    await loadVoucherHistory(); // โหลดประวัติซองอั่งเปา
 });
 
 async function loadUserData() {
@@ -123,20 +129,24 @@ async function loadUserData() {
         const userRef  = doc(db, 'users', currentUser.uid);
         const snap     = await getDoc(userRef);
         if (!snap.exists()) {
-            // Ghost user repair
+            // Ghost user repair - สร้าง doc อัตโนมัติตาม SKILL.md
             const newData = {
                 uid:         currentUser.uid,
                 email:       currentUser.email || '',
                 displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'ผู้ใช้',
-                balance:     0, role: 'user', websiteId: currentWebsiteId,
+                balance:     0, 
+                role: 'user', 
+                websiteId: currentWebsiteId,
                 createdAt:   serverTimestamp()
             };
             await setDoc(userRef, newData);
             currentUserData = { ...newData, balance: 0 };
+            showToast('สร้างบัญชีผู้ใช้สำเร็จ', 'success');
         } else {
             currentUserData = snap.data();
         }
-        updateBalance(currentUserData.balance ?? 0);   // ✅ ?? ไม่ใช่ ||
+        // ✅ ใช้ ?? ไม่ใช้ ||
+        updateBalance(currentUserData.balance ?? 0);
     } catch (err) {
         console.error('[topup] loadUserData:', err);
         currentUserData = { balance: 0 };
@@ -191,19 +201,18 @@ async function loadPaymentMethods() {
     const noConfig  = document.getElementById('noPaymentConfig');
     if (!container) return;
 
-    // Loading skeleton
+    // Loading spinner แทน skeleton (ตาม SKILL.md ห้ามใช้ skeleton ที่ทำให้ข้อมูลหาย)
     container.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:12px;">
-            ${[1,2].map(() => `
-                <div style="height:72px;border-radius:18px;background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;"></div>
-            `).join('')}
+        <div style="display:flex;align-items:center;justify-content:center;padding:32px;color:#94a3b8;gap:10px;">
+            <div style="width:22px;height:22px;border:2px solid #bae6fd;border-top-color:#0ea5e9;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;"></div>
+            กำลังโหลดข้อมูล...
         </div>
     `;
 
     try {
         await loadFeeSettingsFrontend();
 
-        // ลอง orderBy ก่อน fallback ถ้า index ยังไม่สร้าง
+        // ลอง orderBy ก่อน fallback ถ้า index ยังไม่สร้าง (ตาม SKILL.md)
         let snap;
         try {
             const q = query(
@@ -254,7 +263,7 @@ function createPaymentCard(id, method) {
     div.dataset.type    = method.type     || 'bank';
     div.dataset.name    = method.name     || method.bankName     || 'ไม่ระบุ';
     div.dataset.account = method.accountNumber || method.phoneNumber || '-';
-    div.dataset.fee     = method.fee      || 0;
+    div.dataset.fee     = method.fee      ?? 0; // ✅ ??
 
     const isTM    = method.type === 'truemoney';
     const bgColor = isTM ? 'rgba(249,115,22,.10)' : 'rgba(14,165,233,.10)';
@@ -319,8 +328,11 @@ function selectPaymentMethod(id, element) {
     if (check) check.style.display = 'block';
 
     selectedPaymentMethod = {
-        id, type: element.dataset.type, name: element.dataset.name,
-        account: element.dataset.account, fee: parseFloat(element.dataset.fee) || 0
+        id, 
+        type: element.dataset.type, 
+        name: element.dataset.name,
+        account: element.dataset.account, 
+        fee: parseFloat(element.dataset.fee) || 0
     };
     validateForm();
 
@@ -441,34 +453,7 @@ window.submitTopup = async function (event) {
             return;
         }
 
-        // 2. ตรวจสอบ API Key และทำรายการอัตโนมัติ
-        const paymentSettingsSnap = await getDoc(doc(db, 'system', 'payment_settings'));
-        const paymentSettings = paymentSettingsSnap.exists() ? paymentSettingsSnap.data() : {};
-        const apiKey = paymentSettings.paymentApiKey;
-
-        let status = 'pending';
-        let amount = 0;
-        let successMsg = 'ส่งคำขอเติมเงินสำเร็จ รอการตรวจสอบ';
-
-        if (apiKey) {
-            // จำลองการเรียก API ตรวจสอบสลิป (ในระบบจริงต้องเรียกผ่าน Backend/Cloud Functions เพื่อความปลอดภัย)
-            // แต่เนื่องจากเป็นระบบ Frontend-only เราจะจำลองการตรวจสอบและอนุมัติทันทีถ้ามี API Key
-            console.log('Automated check with API Key:', apiKey);
-            
-            // สุ่มจำนวนเงินเพื่อจำลองการอ่านจากสลิป (ในระบบจริง API จะคืนค่านี้มา)
-            amount = Math.floor(Math.random() * 900) + 100; 
-            status = 'approved';
-            successMsg = `เติมเงินสำเร็จอัตโนมัติ! จำนวน ฿${amount.toLocaleString()} ยอดเงินอัปเดตแล้ว`;
-            
-            // อัปเดตยอดเงินผู้ใช้ทันที
-            const userRef = doc(db, 'users', currentUser.uid);
-            await updateDoc(userRef, {
-                balance: increment(amount),
-                updatedAt: serverTimestamp()
-            });
-        }
-
-        // 3. บันทึกลง Firestore
+        // 2. บันทึกลง Firestore
         await addDoc(collection(db, 'topup_requests'), {
             userId:            currentUser.uid,
             userEmail:         currentUser.email      || '',
@@ -481,14 +466,14 @@ window.submitTopup = async function (event) {
             feePercent:        selectedPaymentMethod.fee,
             slipBase64,
             originalFileName:  selectedFile.name,
-            status:            status,
+            status:            'pending',
             note:              document.getElementById('transferNote')?.value?.slice(0, 500) || '',
-            amount:            amount,
+            amount:            0,
             createdAt:         serverTimestamp(),
             updatedAt:         serverTimestamp()
         });
 
-        showToast(successMsg, status === 'approved' ? 'success' : 'info');
+        showToast('ส่งคำขอเติมเงินสำเร็จ รอการตรวจสอบ', 'success');
         clearFile();
         const noteEl = document.getElementById('transferNote');
         if (noteEl) noteEl.value = '';
@@ -509,11 +494,11 @@ window.loadHistory = async function () {
     const container = document.getElementById('historyList');
     if (!container || !currentUser) return;
 
+    // Spinner แทน skeleton
     container.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:10px;">
-            ${[1,2,3].map(() => `
-                <div style="height:80px;border-radius:14px;background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;"></div>
-            `).join('')}
+        <div style="display:flex;align-items:center;justify-content:center;padding:32px;color:#94a3b8;gap:10px;">
+            <div style="width:22px;height:22px;border:2px solid #bae6fd;border-top-color:#0ea5e9;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;"></div>
+            กำลังโหลด...
         </div>
     `;
 
@@ -528,6 +513,7 @@ window.loadHistory = async function () {
             );
             snap = await getDocs(q);
         } catch {
+            // Fallback ถ้า index ยังไม่พร้อม
             const q = query(
                 collection(db, 'topup_requests'),
                 where('userId', '==', currentUser.uid),
@@ -540,17 +526,12 @@ window.loadHistory = async function () {
 
         if (snap.empty) {
             const empty = document.createElement('div');
-            empty.style.cssText = 'text-align:center;padding:32px 20px;color:#94a3b8;';
-            const iEl = document.createElement('i');
-            iEl.className = 'fa-solid fa-receipt';
-            iEl.style.cssText = 'font-size:2.2rem;color:#cbd5e1;display:block;margin-bottom:10px;';
-            const p1 = document.createElement('p');
-            p1.style.cssText = 'font-weight:600;color:#64748b;';
-            p1.textContent = 'ไม่มีประวัติการเติมเงิน';
-            const p2 = document.createElement('p');
-            p2.style.cssText = 'font-size:.8rem;margin-top:4px;';
-            p2.textContent = 'เริ่มต้นโดยการแจ้งโอนเงินครั้งแรก';
-            empty.appendChild(iEl); empty.appendChild(p1); empty.appendChild(p2);
+            empty.className = 'empty-state';
+            empty.innerHTML = `
+                <i class="fa-solid fa-receipt" style="font-size:2.2rem;color:#cbd5e1;margin-bottom:10px;display:block;"></i>
+                <p style="font-weight:600;color:#64748b;">ไม่มีประวัติการเติมเงิน</p>
+                <p style="font-size:.8rem;margin-top:4px;">เริ่มต้นโดยการแจ้งโอนเงินครั้งแรก</p>
+            `;
             container.appendChild(empty);
             return;
         }
@@ -588,7 +569,9 @@ function createHistoryItem(data, _id) {
     const statusCfg = {
         pending:  { color:'#f59e0b', bg:'#fffbeb', label:'รอตรวจสอบ', icon:'fa-clock'              },
         approved: { color:'#10b981', bg:'#ecfdf5', label:'สำเร็จ',     icon:'fa-circle-check'      },
-        rejected: { color:'#ef4444', bg:'#fef2f2', label:'ปฏิเสธ',     icon:'fa-circle-xmark'      }
+        rejected: { color:'#ef4444', bg:'#fef2f2', label:'ปฏิเสธ',     icon:'fa-circle-xmark'      },
+        processing: { color:'#8b5cf6', bg:'#f5f3ff', label:'กำลังดำเนินการ', icon:'fa-spinner fa-spin' },
+        completed: { color:'#10b981', bg:'#ecfdf5', label:'เสร็จสิ้น', icon:'fa-circle-check' }
     };
     const st = statusCfg[data.status] || statusCfg.pending;
 
@@ -672,12 +655,7 @@ window.redeemCode = async function () {
     const origContent = btnText?.innerHTML;
     btn.disabled = true;
     if (btnText) {
-        btnText.innerHTML = '';
-        const spinIcon = document.createElement('i');
-        spinIcon.className = 'fa-solid fa-circle-notch fa-spin';
-        spinIcon.style.marginRight = '8px';
-        btnText.appendChild(spinIcon);
-        btnText.appendChild(document.createTextNode('กำลังตรวจสอบ...'));
+        btnText.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>กำลังตรวจสอบ...';
     }
 
     try {
@@ -690,17 +668,26 @@ window.redeemCode = async function () {
         const snap = await getDocs(q);
 
         if (snap.empty) {
-            showToast('โค้ดไม่ถูกต้องหรือถูกใช้แล้ว', 'error'); return;
+            showToast('โค้ดไม่ถูกต้องหรือถูกใช้แล้ว', 'error'); 
+            btn.disabled = false;
+            if(btnText && origContent) btnText.innerHTML = origContent;
+            return;
         }
 
         const codeDoc  = snap.docs[0];
         const codeData = codeDoc.data();
 
         if (codeData.expiresAt && codeData.expiresAt.toDate() < new Date()) {
-            showToast('โค้ดหมดอายุแล้ว', 'error'); return;
+            showToast('โค้ดหมดอายุแล้ว', 'error'); 
+            btn.disabled = false;
+            if(btnText && origContent) btnText.innerHTML = origContent;
+            return;
         }
         if (codeData.websiteId && codeData.websiteId !== currentWebsiteId) {
-            showToast('โค้ดนี้ไม่สามารถใช้กับเว็บไซต์นี้ได้', 'error'); return;
+            showToast('โค้ดนี้ไม่สามารถใช้กับเว็บไซต์นี้ได้', 'error'); 
+            btn.disabled = false;
+            if(btnText && origContent) btnText.innerHTML = origContent;
+            return;
         }
 
         // Transaction: mark used + credit balance
@@ -808,22 +795,328 @@ window.loadRedeemHistory = async function () {
     } catch (e) { console.error('[topup] loadRedeemHistory:', e); }
 };
 
+// ── TrueMoney Voucher Gateway ───────────────────────────────────
+// ตรวจสอบว่าซองซ้ำหรือไม่
+async function isDuplicateVoucher(voucherHash) {
+    const q = query(
+        collection(db, 'topup_requests'),
+        where('websiteId', '==', currentWebsiteId),
+        where('voucherHash', '==', voucherHash),
+        where('status', 'in', ['completed', 'processing'])
+    );
+    const snapshot = await getDocs(q);
+    return !snapshot.empty;
+}
+
+// ดึงเบอร์ Admin จาก website settings
+async function getAdminPhone() {
+    if (!currentWebsiteId) {
+        // ถ้าไม่มี tenant ใช้เบอร์จาก system config
+        const configSnap = await getDoc(doc(db, 'system', 'payment_settings'));
+        if (configSnap.exists() && configSnap.data().truemoneyPhone) {
+            return configSnap.data().truemoneyPhone;
+        }
+        throw new Error('ไม่พบการตั้งค่าเบอร์ TrueMoney');
+    }
+    
+    const websiteRef = doc(db, 'websites', currentWebsiteId);
+    const websiteSnap = await getDoc(websiteRef);
+    
+    if (!websiteSnap.exists()) {
+        throw new Error('ไม่พบข้อมูลเว็บไซต์');
+    }
+    
+    const data = websiteSnap.data();
+    const phone = data.paymentSettings?.truemoneyPhone || data.truemoneyPhone;
+    
+    if (!phone) {
+        throw new Error('ยังไม่ได้ตั้งค่าเบอร์ TrueMoney ในระบบ');
+    }
+    
+    return phone;
+}
+
+function extractVoucherId(url) {
+    try {
+        const urlObj = new URL(url);
+        return urlObj.searchParams.get('v') || '';
+    } catch (e) {
+        // กรณีไม่ใช่ URL สมบูรณ์ ลอง split
+        const parts = url.split('?v=');
+        return parts[1] ? parts[1].split('&')[0] : '';
+    }
+}
+
+// ตรวจสอบซอง (ยังไม่รับเงิน)
+async function verifyVoucher(voucherHash, phone) {
+    const url = `https://gift.truemoney.com/campaign/vouchers/${voucherHash}/verify?mobile=${phone}`;
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (PanderX-System)'
+        }
+    });
+    return await response.json();
+}
+
+// รับเงินจริง
+async function redeemVoucher(voucherHash, phone) {
+    const url = `https://gift.truemoney.com/campaign/vouchers/${voucherHash}/redeem`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (PanderX-System)'
+        },
+        body: JSON.stringify({
+            mobile: phone,
+            voucher_hash: voucherHash
+        })
+    });
+    return await response.json();
+}
+
+// Submit Voucher (UI Function)
+window.submitVoucher = async function() {
+    const input = document.getElementById('voucherInput');
+    const btn = document.getElementById('voucherBtn');
+    const btnText = document.getElementById('voucherBtnText');
+    const btnLoading = document.getElementById('voucherBtnLoading');
+    const resultBox = document.getElementById('voucherResult');
+    
+    const url = input?.value?.trim();
+    if (!url || !url.includes('gift.truemoney.com')) {
+        showToast('กรุณาใส่ลิงก์ซองอั่งเปาที่ถูกต้อง', 'error');
+        return;
+    }
+    
+    if (!currentUser) {
+        showToast('กรุณาเข้าสู่ระบบก่อน', 'error');
+        return;
+    }
+    
+    // UI Loading state
+    btn.disabled = true;
+    btnText.style.display = 'none';
+    btnLoading.style.display = 'inline';
+    resultBox.style.display = 'none';
+    
+    try {
+        const voucherHash = extractVoucherId(url);
+        if (!voucherHash) {
+            throw new Error('ไม่สามารถอ่านรหัสซองได้');
+        }
+        
+        // 1. Check duplicate
+        const duplicate = await isDuplicateVoucher(voucherHash);
+        if (duplicate) {
+            throw new Error('ซองอั่งเปานี้ถูกใช้งานแล้ว');
+        }
+        
+        // 2. Get admin phone
+        const adminPhone = await getAdminPhone();
+        
+        // 3. Create pending record (lock ไม่ให้คนอื่นใช้ซ้ำพร้อมกัน)
+        const pendingRef = await addDoc(collection(db, 'topup_requests'), {
+            websiteId: currentWebsiteId,
+            userId: currentUser.uid,
+            userName: currentUser.displayName || currentUser.email?.split('@')[0] || 'ผู้ใช้',
+            userEmail: currentUser.email || '',
+            method: 'truemoney_voucher',
+            voucherHash: voucherHash,
+            voucherUrl: url,
+            amount: 0,
+            status: 'processing',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        
+        // 4. Verify voucher (check amount)
+        const verifyData = await verifyVoucher(voucherHash, adminPhone);
+        
+        if (verifyData.status.code !== 'SUCCESS') {
+            // Update to failed
+            await updateDoc(pendingRef, {
+                status: 'failed',
+                error: verifyData.status.message || 'ซองไม่ถูกต้อง',
+                updatedAt: serverTimestamp()
+            });
+            throw new Error(verifyData.status.message || 'ตรวจสอบซองไม่สำเร็จ');
+        }
+        
+        const amount = verifyData.data?.amount?.value || 0;
+        const senderName = verifyData.data?.sender_name || 'ไม่ระบุชื่อ';
+        const message = verifyData.data?.message || '';
+        
+        // 5. Redeem to admin wallet
+        const redeemData = await redeemVoucher(voucherHash, adminPhone);
+        
+        if (redeemData.status.code !== 'SUCCESS') {
+            await updateDoc(pendingRef, {
+                status: 'failed',
+                error: redeemData.status.message || 'รับเงินไม่สำเร็จ',
+                updatedAt: serverTimestamp()
+            });
+            throw new Error('รับเงินเข้าระบบไม่สำเร็จ กรุณาลองใหม่');
+        }
+        
+        // 6. Success! Update record + add balance
+        await updateDoc(pendingRef, {
+            status: 'completed',
+            amount: amount,
+            senderName: senderName,
+            message: message,
+            completedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        
+        // 7. Add balance to user
+        const userRef = doc(db, 'users', currentUser.uid);
+        await updateDoc(userRef, {
+            balance: increment(amount),
+            lastTopupAt: serverTimestamp(),
+            lastTopupAmount: amount,
+            updatedAt: serverTimestamp()
+        });
+        
+        // 8. Transaction log
+        await addDoc(collection(db, 'transactions'), {
+            websiteId: currentWebsiteId,
+            userId: currentUser.uid,
+            type: 'topup_truemoney',
+            amount: amount,
+            requestId: pendingRef.id,
+            voucherHash: voucherHash,
+            senderName: senderName,
+            createdAt: serverTimestamp()
+        });
+        
+        // Success UI
+        resultBox.className = 'voucher-result-success';
+        resultBox.innerHTML = `
+            <div style="font-size:3rem;margin-bottom:8px;">✓</div>
+            <div style="font-weight:800;color:#166534;font-size:1.1rem;">เติมเงินสำเร็จ!</div>
+            <div style="color:#15803d;margin-top:4px;">จำนวน ${Number(amount).toLocaleString('th-TH')} บาท</div>
+            <div style="font-size:.8rem;color:#22c55e;margin-top:8px;">จาก: ${escapeHtml(senderName)}</div>
+        `;
+        resultBox.style.display = 'block';
+        showToast(`เติมเงินสำเร็จ ${amount} บาท`, 'success');
+        
+        input.value = '';
+        await loadVoucherHistory();
+        await loadHistory(); // โหลดประวัติทั่วไปด้วย
+        
+    } catch (error) {
+        console.error('[Voucher] Error:', error);
+        resultBox.className = 'voucher-result-error';
+        resultBox.innerHTML = `
+            <div style="font-size:2rem;margin-bottom:8px;">✕</div>
+            <div style="font-weight:700;color:#991b1b;">ไม่สำเร็จ</div>
+            <div style="color:#dc2626;margin-top:4px;font-size:.9rem;">${escapeHtml(error.message)}</div>
+        `;
+        resultBox.style.display = 'block';
+        showToast(error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoading.style.display = 'none';
+    }
+};
+
+// โหลดประวัติซองอั่งเปา
+window.loadVoucherHistory = async function() {
+    const container = document.getElementById('voucherHistoryList');
+    if (!container || !currentUser) return;
+    
+    try {
+        const q = query(
+            collection(db, 'topup_requests'),
+            where('userId', '==', currentUser.uid),
+            where('method', '==', 'truemoney_voucher'),
+            orderBy('createdAt', 'desc'),
+            limit(10)
+        );
+        
+        let snap;
+        try {
+            snap = await getDocs(q);
+        } catch {
+            // Fallback ไม่มี orderBy
+            const q2 = query(
+                collection(db, 'topup_requests'),
+                where('userId', '==', currentUser.uid),
+                where('method', '==', 'truemoney_voucher'),
+                limit(10)
+            );
+            snap = await getDocs(q2);
+        }
+        
+        container.innerHTML = '';
+        
+        if (snap.empty) {
+            const empty = document.createElement('div');
+            empty.style.cssText = 'text-align:center;color:#94a3b8;padding:16px;font-size:.85rem;';
+            empty.innerHTML = '<i class="fa-solid fa-gift" style="font-size:1.5rem;color:#cbd5e1;margin-bottom:8px;display:block;"></i>ยังไม่มีประวัติการใช้ซองอั่งเปา';
+            container.appendChild(empty);
+            return;
+        }
+        
+        snap.forEach(docSnap => {
+            const d = docSnap.data();
+            const date = d.createdAt?.toDate 
+                ? d.createdAt.toDate().toLocaleDateString('th-TH') 
+                : '-';
+            
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px;background:#fef2f2;border-radius:12px;border:1px solid #fecaca;';
+            
+            const isSuccess = d.status === 'completed';
+            const statusColor = isSuccess ? '#10b981' : (d.status === 'failed' ? '#ef4444' : '#f59e0b');
+            const statusText = isSuccess ? 'สำเร็จ' : (d.status === 'failed' ? 'ล้มเหลว' : 'รอดำเนินการ');
+            
+            row.innerHTML = `
+                <div>
+                    <div style="font-weight:700;color:#7f1d1d;font-size:.9rem;">
+                        <i class="fa-solid fa-gift mr-1" style="color:#ef4444;"></i>
+                        ซองอั่งเปา
+                    </div>
+                    <div style="font-size:.75rem;color:#94a3b8;">${date}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-weight:800;color:${isSuccess ? '#10b981' : '#64748b'};">
+                        ${isSuccess ? '+' : ''}${Number(d.amount || 0).toLocaleString('th-TH')} ฿
+                    </div>
+                    <div style="font-size:.7rem;color:${statusColor};font-weight:600;">
+                        ${statusText}
+                    </div>
+                </div>
+            `;
+            container.appendChild(row);
+        });
+        
+    } catch (e) {
+        console.error('[Voucher] load history error:', e);
+        container.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:16px;">โหลดประวัติไม่สำเร็จ</div>';
+    }
+};
+
 // ── Logout ─────────────────────────────────────────────────────
 window.handleLogout = async function () {
     try { await signOut(auth); } catch (e) { console.error(e); }
     location.href = './index.html';
 };
 
-// ── shimmer keyframes ─────────────────────────────────────────
+// ── shimmer keyframes (สำหรับ spinner) ─────────────────────────
 if (!document.getElementById('topupShimmerStyle')) {
     const s = document.createElement('style');
     s.id = 'topupShimmerStyle';
-    s.textContent = `@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`;
+    s.textContent = `@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}} @keyframes spin{to{transform:rotate(360deg)}}`;
     document.head.appendChild(s);
 }
 
 // ────────────────────────────────────────────────────────────────
-// ADMIN FUNCTIONS (ไม่แก้ไข logic — ปรับแค่ hidden → style.display)
+// ADMIN FUNCTIONS (ปรับแก้ style.display ตาม SKILL.md)
 // ────────────────────────────────────────────────────────────────
 
 function setupTopupRealtime() {
@@ -877,9 +1170,17 @@ async function loadTopupRequests() {
         const statusClasses = {
             pending:  'bg-amber-100 text-amber-700',
             approved: 'bg-emerald-100 text-emerald-700',
-            rejected: 'bg-red-100 text-red-700'
+            rejected: 'bg-red-100 text-red-700',
+            processing: 'bg-purple-100 text-purple-700',
+            completed: 'bg-emerald-100 text-emerald-700'
         };
-        const statusText = { pending:'รอตรวจสอบ', approved:'อนุมัติแล้ว', rejected:'ปฏิเสธ' };
+        const statusText = { 
+            pending:'รอตรวจสอบ', 
+            approved:'อนุมัติแล้ว', 
+            rejected:'ปฏิเสธ',
+            processing:'กำลังดำเนินการ',
+            completed:'เสร็จสิ้น'
+        };
 
         tbody.innerHTML = requests.map(r => {
             const date = r.createdAt?.toDate
@@ -900,8 +1201,8 @@ async function loadTopupRequests() {
                     </td>
                     <td class="py-4 px-6">
                         <div class="flex items-center gap-2">
-                            <i class="fa-solid ${r.paymentMethodType === 'truemoney' ? 'fa-wallet text-orange-500' : 'fa-building-columns text-slate-500'}"></i>
-                            <span class="font-medium text-slate-700">${escapeHtml(r.paymentMethodName || 'ไม่ระบุ')}</span>
+                            <i class="fa-solid ${r.paymentMethodType === 'truemoney' || r.method === 'truemoney_voucher' ? 'fa-wallet text-orange-500' : 'fa-building-columns text-slate-500'}"></i>
+                            <span class="font-medium text-slate-700">${escapeHtml(r.paymentMethodName || (r.method === 'truemoney_voucher' ? 'TrueMoney Voucher' : 'ไม่ระบุ'))}</span>
                         </div>
                     </td>
                     <td class="py-4 px-6 text-sm font-mono text-slate-600">${accountInfo}</td>
@@ -962,7 +1263,7 @@ async function openTopupModal(requestId) {
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
                     <div style="padding:14px;background:#f8fafc;border-radius:12px;">
                         <div style="font-size:.8rem;color:#94a3b8;margin-bottom:4px;">ช่องทาง</div>
-                        <div style="font-weight:700;color:#1e293b;">${escapeHtml(r.paymentMethodName || 'ไม่ระบุ')}</div>
+                        <div style="font-weight:700;color:#1e293b;">${escapeHtml(r.paymentMethodName || (r.method === 'truemoney_voucher' ? 'TrueMoney Voucher' : 'ไม่ระบุ'))}</div>
                     </div>
                     <div style="padding:14px;background:#f8fafc;border-radius:12px;">
                         <div style="font-size:.8rem;color:#94a3b8;margin-bottom:4px;">เวลา</div>
@@ -1025,7 +1326,7 @@ async function approveTopup() {
         const userRef  = doc(db, 'users', currentTopupRequest.userId);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
-            const curr = userSnap.data().balance ?? 0;
+            const curr = userSnap.data().balance ?? 0; // ✅ ??
             await updateDoc(userRef, {
                 balance: curr + amount, updatedAt: serverTimestamp()
             });
