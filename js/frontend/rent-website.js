@@ -391,6 +391,8 @@ window.submitOrder = async function () {
                     websiteId:        subdomain,
                     packageId,
                     packageName,
+                    basePrice:        basePrice,        // ⭐ เพิ่มบรรทัดนี้
+                    price:            basePrice,        // ⭐ เพิ่มบรรทัดนี้ (สำหรับ Dashboard แสดงผล)
                     ownerId:          currentUser.uid,
                     ownerEmail:       currentUser.email || '',
                     ownerDisplayName: dispName,
@@ -409,8 +411,12 @@ window.submitOrder = async function () {
                     Math.max(currExp.getTime(), now.getTime()) + selectedDuration * 86400000
                 );
                 tx.update(websiteRef, {
-                    expiresAt: newExpiry, lastRenewal: serverTimestamp(),
-                    status: 'active', updatedAt: serverTimestamp()
+                    expiresAt: newExpiry, 
+                    lastRenewal: serverTimestamp(),
+                    status: 'active', 
+                    updatedAt: serverTimestamp(),
+                    basePrice: basePrice,        // ⭐ เพิ่มบรรทัดนี้ (อัปเดตราคาปัจจุบัน)
+                    price: basePrice             // ⭐ เพิ่มบรรทัดนี้
                 });
             }
 

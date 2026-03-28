@@ -647,7 +647,7 @@ function escapeHtml(text) {
 
 ### Firebase Import (ทุก JS frontend)
 ```javascript
-import { auth, db } from '../firebase-config.js'; // หรือ '../../firebase-config.js'
+import { auth, db } from '../firebase-config.js'; 
 // firebase-config.js export: { app, auth, db }
 // Firebase version: 10.7.1
 const FB = 'https://www.gstatic.com/firebasejs/10.7.1';
