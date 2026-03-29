@@ -1,1415 +1,418 @@
-// ============================================================
-//  js/frontend/topup.js
-//  เพิ่ม: TrueMoney Voucher Gateway + แก้บัคตาม SKILL.md
-//  Firebase 10.7.1 — import จาก firebase-config.js เท่านั้น
-// ============================================================
-
-import { auth, db } from '../firebase-config.js';
-import {
-    onAuthStateChanged, signOut
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import {
-    collection, query, where, onSnapshot,
-    getDocs, doc, getDoc, setDoc,
-    updateDoc, addDoc, serverTimestamp,
-    increment, orderBy, limit, writeBatch
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-
-// ── Expose ให้ admin functions ────────────────────────────────
-window.firestoreFns = {
-    collection, query, where, onSnapshot, getDocs, doc, getDoc,
-    updateDoc, addDoc, serverTimestamp, setDoc, orderBy, limit
-};
-window.db = db;
-
-// ── Derive websiteId จาก hostname (multi-tenant) ──────────────
-const MAIN_DOMAINS = new Set(['panderx.xyz','localhost','127.0.0.1']);
-const _hostname = location.hostname.replace(/^www\./, '');
-const _parts    = _hostname.split('.');
-const currentWebsiteId = (_parts.length >= 3 && !MAIN_DOMAINS.has(_hostname))
-    ? _parts[0] : null;
-
-// ── State ─────────────────────────────────────────────────────
-let currentUser          = null;
-let currentUserData      = null;
-let selectedFile         = null;
-let selectedPaymentMethod = null;
-let topupUnsubscribe     = null;
-let currentTopupRequest  = null;
-let balanceUnsubscribe   = null;
-
-// ── Rate Limiting (login) ────────────────────────────────────
-const RL_KEY    = 'panderx_login_attempts';
-const RL_MAX    = 5;
-const RL_WINDOW = 15 * 60 * 1000; // 15 min
-
-// ── Security: escapeHtml (XSS safe) ───────────────────────────
-function escapeHtml(text) {
-    if (typeof text !== 'string') return String(text ?? '');
-    const d = document.createElement('div');
-    d.textContent = text;
-    return d.innerHTML;
-}
-
-// ── Toast ─────────────────────────────────────────────────────
-window.showToast = function (msg, type = 'info') {
-    const c = document.getElementById('toastContainer');
-    if (!c) return;
-    const icons  = { success:'fa-circle-check', error:'fa-circle-xmark', info:'fa-circle-info' };
-    const colors = { success:'#10b981', error:'#ef4444', info:'#0ea5e9' };
-    const t = document.createElement('div');
-    t.className = `toast ${type}`;
-    t.style.cssText = 'padding:14px 18px;background:white;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.13);display:flex;align-items:center;gap:10px;border-left:4px solid;min-width:240px;max-width:320px;';
-    t.style.borderLeftColor = colors[type] || '#64748b';
-    const icon = document.createElement('i');
-    icon.className = `fa-solid ${icons[type] || 'fa-circle-info'}`;
-    icon.style.cssText = `color:${colors[type]};font-size:1rem;flex-shrink:0;`;
-    const span = document.createElement('span');
-    span.textContent = msg;   // ✅ textContent ไม่ใช่ innerHTML
-    span.style.cssText = 'font-weight:600;color:#1e293b;font-size:.875rem;';
-    t.appendChild(icon); t.appendChild(span);
-    c.appendChild(t);
-    requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
-    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3200);
-};
-
-// ── UI helpers ─────────────────────────────────────────────────
-function setTxt(id, v) {
-    const el = document.getElementById(id); if (el) el.textContent = v;
-}
-function show(id)  { const el = document.getElementById(id); if (el) el.style.display = 'block'; }
-function hide(id)  { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
-function showFlex(id) { const el = document.getElementById(id); if (el) el.style.display = 'flex'; }
-
-function updateBalance(raw) {
-    // ✅ ใช้ ?? ไม่ใช้ || (สำคัญ! ถ้า balance=0 จะไม่ bug)
-    const fmt = Number(raw ?? 0).toLocaleString('th-TH', {
-        minimumFractionDigits: 2, maximumFractionDigits: 2
-    });
-    setTxt('currentBalance', '฿' + fmt);
-    setTxt('userBalance',    fmt);
-    setTxt('dropdownBalance', fmt);
-}
-
-// ── Auth Init ─────────────────────────────────────────────────
-onAuthStateChanged(auth, async (user) => {
-    // ซ่อน auth loading ทันทีที่ Firebase ตอบกลับ
-    hide('authLoading');
-
-    if (!user) {
-        hide('userProfile');
-        // Redirect ไป login พร้อม redirect กลับ
-        location.href = `./login.html?redirect=${encodeURIComponent(location.href)}`;
-        return;
-    }
-
-    currentUser = user;
-    show('userProfile');
-
-    // Optimistic UI ก่อน Firestore
-    const displayName = user.displayName || user.email?.split('@')[0] || 'ผู้ใช้';
-    setTxt('displayName',   displayName);
-    setTxt('dropdownName',  displayName);
-    const initial = displayName.charAt(0).toUpperCase();
-    setTxt('userAvatar',    initial);
-    setTxt('dropdownAvatar', initial);
-    updateBalance(0); // Optimistic
-
-    await loadUserData();
-    setupBalanceRealtime(user.uid);
-    await loadPaymentMethods();
-    await loadHistory();
-    await loadRedeemHistory();
-    await loadVoucherHistory(); // โหลดประวัติซองอั่งเปา
-});
-
-async function loadUserData() {
-    if (!currentUser) return;
-    try {
-        const userRef  = doc(db, 'users', currentUser.uid);
-        const snap     = await getDoc(userRef);
-        if (!snap.exists()) {
-            // Ghost user repair - สร้าง doc อัตโนมัติตาม SKILL.md
-            const newData = {
-                uid:         currentUser.uid,
-                email:       currentUser.email || '',
-                displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'ผู้ใช้',
-                balance:     0, 
-                role: 'user', 
-                websiteId: currentWebsiteId,
-                createdAt:   serverTimestamp()
-            };
-            await setDoc(userRef, newData);
-            currentUserData = { ...newData, balance: 0 };
-            showToast('สร้างบัญชีผู้ใช้สำเร็จ', 'success');
-        } else {
-            currentUserData = snap.data();
-        }
-        // ✅ ใช้ ?? ไม่ใช้ ||
-        updateBalance(currentUserData.balance ?? 0);
-    } catch (err) {
-        console.error('[topup] loadUserData:', err);
-        currentUserData = { balance: 0 };
-        updateBalance(0);
-        showToast('โหลดข้อมูลผู้ใช้ไม่สำเร็จ', 'error');
-    }
-}
-
-// ── Real-time Balance ──────────────────────────────────────────
-function setupBalanceRealtime(uid) {
-    if (balanceUnsubscribe) balanceUnsubscribe();
-    balanceUnsubscribe = onSnapshot(doc(db, 'users', uid), (snap) => {
-        if (!snap.exists()) return;
-        const bal = snap.data().balance ?? 0;   // ✅ ??
-        updateBalance(bal);
-        if (currentUserData) currentUserData.balance = bal;
-    }, (err) => {
-        console.error('[topup] balance snapshot:', err);
-    });
-}
-
-// ── Refresh button ─────────────────────────────────────────────
-window.refreshBalance = async function () {
-    const icon = document.getElementById('refreshIcon');
-    icon?.classList.add('fa-spin');
-    try {
-        if (!currentUser) return;
-        const snap = await getDoc(doc(db, 'users', currentUser.uid));
-        if (snap.exists()) updateBalance(snap.data().balance ?? 0);
-        showToast('รีเฟรชยอดเงินแล้ว', 'success');
-    } catch { showToast('รีเฟรชไม่สำเร็จ', 'error'); }
-    finally  { setTimeout(() => icon?.classList.remove('fa-spin'), 1000); }
-};
-
-// ── Fee Settings ───────────────────────────────────────────────
-async function loadFeeSettingsFrontend() {
-    try {
-        const snap = await getDoc(doc(db, 'system', 'topup_config'));
-        if (snap.exists()) {
-            const d = snap.data();
-            window.feeSettings = {
-                bankFee:       d.bankFee       ?? 0,
-                trueMoneyFee:  d.trueMoneyFee  ?? 0
-            };
-        }
-    } catch (e) { console.warn('[topup] loadFeeSettings:', e); }
-}
-
-// ── Payment Methods ────────────────────────────────────────────
-async function loadPaymentMethods() {
-    const container = document.getElementById('paymentMethodsList');
-    const noConfig  = document.getElementById('noPaymentConfig');
-    if (!container) return;
-
-    // Loading spinner แทน skeleton (ตาม SKILL.md ห้ามใช้ skeleton ที่ทำให้ข้อมูลหาย)
-    container.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;padding:32px;color:#94a3b8;gap:10px;">
-            <div style="width:22px;height:22px;border:2px solid #bae6fd;border-top-color:#0ea5e9;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;"></div>
-            กำลังโหลดข้อมูล...
-        </div>
-    `;
-
-    try {
-        await loadFeeSettingsFrontend();
-
-        // ลอง orderBy ก่อน fallback ถ้า index ยังไม่สร้าง (ตาม SKILL.md)
-        let snap;
-        try {
-            const q = query(
-                collection(db, 'bank_accounts'),
-                where('isActive', '==', true),
-                orderBy('order', 'asc')
-            );
-            snap = await getDocs(q);
-        } catch {
-            const q = query(
-                collection(db, 'bank_accounts'),
-                where('isActive', '==', true)
-            );
-            snap = await getDocs(q);
-        }
-
-        container.innerHTML = '';
-
-        if (snap.empty) {
-            if (noConfig) noConfig.style.display = 'block';
-            return;
-        }
-        if (noConfig) noConfig.style.display = 'none';
-
-        snap.forEach(docSnap => {
-            container.appendChild(createPaymentCard(docSnap.id, docSnap.data()));
-        });
-
-    } catch (e) {
-        console.error('[topup] loadPaymentMethods:', e);
-        container.innerHTML = '';
-        const errDiv = document.createElement('div');
-        errDiv.style.cssText = 'text-align:center;padding:24px;color:#ef4444;';
-        errDiv.textContent = 'โหลดข้อมูลไม่สำเร็จ';
-        const retryBtn = document.createElement('button');
-        retryBtn.textContent = 'ลองใหม่';
-        retryBtn.style.cssText = 'display:block;margin:10px auto 0;padding:6px 16px;background:#fee2e2;border:none;border-radius:8px;color:#dc2626;cursor:pointer;font-family:Prompt;font-weight:600;';
-        retryBtn.onclick = loadPaymentMethods;
-        errDiv.appendChild(retryBtn);
-        container.appendChild(errDiv);
-    }
-}
-
-function createPaymentCard(id, method) {
-    const div = document.createElement('div');
-    div.className = 'payment-card';
-    div.dataset.id      = id;
-    div.dataset.type    = method.type     || 'bank';
-    div.dataset.name    = method.name     || method.bankName     || 'ไม่ระบุ';
-    div.dataset.account = method.accountNumber || method.phoneNumber || '-';
-    div.dataset.fee     = method.fee      ?? 0; // ✅ ??
-
-    const isTM    = method.type === 'truemoney';
-    const bgColor = isTM ? 'rgba(249,115,22,.10)' : 'rgba(14,165,233,.10)';
-    const txtColor = isTM ? '#f97316' : '#0ea5e9';
-    const icon    = isTM ? 'fa-wallet' : 'fa-building-columns';
-
-    // สร้าง DOM แทน innerHTML เพื่อ XSS safety
-    const inner = document.createElement('div');
-    inner.style.cssText = 'display:flex;align-items:center;gap:14px;';
-
-    const logoWrap = document.createElement('div');
-    logoWrap.className = 'bank-logo';
-    logoWrap.style.cssText = `background:${bgColor};color:${txtColor};display:flex;align-items:center;justify-content:center;border-radius:12px;width:48px;height:48px;flex-shrink:0;`;
-    const logoIcon = document.createElement('i');
-    logoIcon.className = `fa-solid ${icon}`;
-    logoIcon.style.fontSize = '1.25rem';
-    logoWrap.appendChild(logoIcon);
-
-    const info = document.createElement('div');
-    info.style.flex = '1';
-
-    const nameEl = document.createElement('div');
-    nameEl.style.cssText = 'font-weight:700;color:#1e293b;';
-    nameEl.textContent = method.name || method.bankName || 'ไม่ระบุ';
-
-    const accEl = document.createElement('div');
-    accEl.style.cssText = 'font-family:monospace;font-size:.9rem;color:#64748b;margin-top:2px;';
-    accEl.textContent = method.accountNumber || method.phoneNumber || '-';
-
-    info.appendChild(nameEl);
-    info.appendChild(accEl);
-
-    if (method.accountName) {
-        const ownerEl = document.createElement('div');
-        ownerEl.style.cssText = 'font-size:.8rem;color:#94a3b8;';
-        ownerEl.textContent = method.accountName;
-        info.appendChild(ownerEl);
-    }
-
-    const checkEl = document.createElement('i');
-    checkEl.id = `check-${id}`;
-    checkEl.className = 'fa-regular fa-circle-check';
-    checkEl.style.cssText = `color:${txtColor};font-size:1.25rem;display:none;`;
-
-    inner.appendChild(logoWrap);
-    inner.appendChild(info);
-    inner.appendChild(checkEl);
-    div.appendChild(inner);
-
-    div.onclick = () => selectPaymentMethod(id, div);
-    return div;
-}
-
-function selectPaymentMethod(id, element) {
-    document.querySelectorAll('.payment-card').forEach(el => {
-        el.classList.remove('active');
-        const chk = document.getElementById(`check-${el.dataset.id}`);
-        if (chk) chk.style.display = 'none';
-    });
-    element.classList.add('active');
-    const check = document.getElementById(`check-${id}`);
-    if (check) check.style.display = 'block';
-
-    selectedPaymentMethod = {
-        id, 
-        type: element.dataset.type, 
-        name: element.dataset.name,
-        account: element.dataset.account, 
-        fee: parseFloat(element.dataset.fee) || 0
-    };
-    validateForm();
-
-    // Fee notice
-    const feeNotice     = document.getElementById('feeNotice');
-    const feeNoticeText = document.getElementById('feeNoticeText');
-    if (feeNotice) {
-        if (selectedPaymentMethod.fee > 0) {
-            if (feeNoticeText) feeNoticeText.textContent = `ช่องทางนี้หักค่าธรรมเนียม ${selectedPaymentMethod.fee}%`;
-            feeNotice.style.display = 'block';
-        } else {
-            feeNotice.style.display = 'none';
-        }
-    }
-}
-
-// ── Slip Image — base64 (ไม่ใช้ Firebase Storage) ─────────────
-// compress ด้วย canvas ก่อนเพื่อลด size
-function compressImage(file, maxPx = 900, quality = 0.75) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = () => {
-            URL.revokeObjectURL(url);
-            let { width, height } = img;
-            if (width > maxPx || height > maxPx) {
-                const ratio = Math.min(maxPx / width, maxPx / height);
-                width  = Math.round(width  * ratio);
-                height = Math.round(height * ratio);
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width  = width;
-            canvas.height = height;
-            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject;
-        img.src = url;
-    });
-}
-
-window.handleFileSelect = function (event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-        showToast('กรุณาอัปโหลดไฟล์รูปภาพเท่านั้น', 'error'); return;
-    }
-    if (file.size > 8 * 1024 * 1024) {
-        showToast('ไฟล์ขนาดใหญ่เกิน 8MB', 'error'); return;
-    }
-    selectedFile = file;
-    const reader = new FileReader();
-    reader.onload = e => {
-        const previewImg    = document.getElementById('previewImage');
-        const placeholder   = document.getElementById('uploadPlaceholder');
-        const preview       = document.getElementById('uploadPreview');
-        const uploadArea    = document.getElementById('uploadArea');
-        if (previewImg)  previewImg.src = e.target.result;
-        if (placeholder) placeholder.style.display = 'none';
-        if (preview)     preview.style.display     = 'block';
-        if (uploadArea)  uploadArea.classList.add('has-file');
-    };
-    reader.readAsDataURL(file);
-    validateForm();
-};
-
-window.clearFile = function () {
-    selectedFile = null;
-    const input       = document.getElementById('slipInput');
-    const placeholder = document.getElementById('uploadPlaceholder');
-    const preview     = document.getElementById('uploadPreview');
-    const uploadArea  = document.getElementById('uploadArea');
-    if (input)       input.value            = '';
-    if (placeholder) placeholder.style.display = 'block';
-    if (preview)     preview.style.display     = 'none';
-    if (uploadArea)  uploadArea.classList.remove('has-file');
-    validateForm();
-};
-
-function validateForm() {
-    const btn = document.getElementById('submitBtn');
-    if (btn) btn.disabled = !(selectedFile && selectedPaymentMethod && currentUser);
-}
-
-// ── Submit Topup (ไม่ใช้ Storage) ─────────────────────────────
-window.submitTopup = async function (event) {
-    event.preventDefault();
-    if (!selectedFile || !selectedPaymentMethod || !currentUser) return;
-
-    const btn      = document.getElementById('submitBtn');
-    const btnText  = document.getElementById('btnText');
-
-    btn.disabled = true;
-    btn.classList.add('loading');
-    if (btnText) { btnText.style.opacity = '0'; }
-
-    try {
-        // 1. Compress → base64 (ไม่ใช้ Firebase Storage)
-        let slipBase64;
-        try {
-            slipBase64 = await compressImage(selectedFile);
-        } catch {
-            // fallback: FileReader
-            slipBase64 = await new Promise((res, rej) => {
-                const r = new FileReader();
-                r.onload  = e => res(e.target.result);
-                r.onerror = rej;
-                r.readAsDataURL(selectedFile);
-            });
-        }
-
-        // เช็ค size หลัง compress (Firestore 1MB limit)
-        const sizeKB = Math.round(slipBase64.length * 0.75 / 1024);
-        if (sizeKB > 900) {
-            showToast('รูปภาพใหญ่เกินไป กรุณาลดขนาดรูปก่อน', 'error');
-            btn.disabled = false; btn.classList.remove('loading');
-            if (btnText) btnText.style.opacity = '1';
-            return;
-        }
-
-        // 2. บันทึกลง Firestore
-        await addDoc(collection(db, 'topup_requests'), {
-            userId:            currentUser.uid,
-            userEmail:         currentUser.email      || '',
-            userName:          currentUser.displayName || currentUser.email?.split('@')[0] || 'ผู้ใช้',
-            websiteId:         currentWebsiteId,
-            paymentMethodId:   selectedPaymentMethod.id,
-            paymentMethodType: selectedPaymentMethod.type,
-            paymentMethodName: selectedPaymentMethod.name,
-            accountNumber:     selectedPaymentMethod.account,
-            feePercent:        selectedPaymentMethod.fee,
-            slipBase64,
-            originalFileName:  selectedFile.name,
-            status:            'pending',
-            note:              document.getElementById('transferNote')?.value?.slice(0, 500) || '',
-            amount:            0,
-            createdAt:         serverTimestamp(),
-            updatedAt:         serverTimestamp()
-        });
-
-        showToast('ส่งคำขอเติมเงินสำเร็จ รอการตรวจสอบ', 'success');
-        clearFile();
-        const noteEl = document.getElementById('transferNote');
-        if (noteEl) noteEl.value = '';
-        await loadHistory();
-
-    } catch (e) {
-        console.error('[topup] submitTopup:', e);
-        showToast('ส่งไม่สำเร็จ กรุณาลองใหม่', 'error');
-    } finally {
-        btn.disabled = false;
-        btn.classList.remove('loading');
-        if (btnText) btnText.style.opacity = '1';
-    }
-};
-
-// ── History ────────────────────────────────────────────────────
-window.loadHistory = async function () {
-    const container = document.getElementById('historyList');
-    if (!container || !currentUser) return;
-
-    // Spinner แทน skeleton
-    container.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;padding:32px;color:#94a3b8;gap:10px;">
-            <div style="width:22px;height:22px;border:2px solid #bae6fd;border-top-color:#0ea5e9;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;"></div>
-            กำลังโหลด...
-        </div>
-    `;
-
-    try {
-        let snap;
-        try {
-            const q = query(
-                collection(db, 'topup_requests'),
-                where('userId', '==', currentUser.uid),
-                orderBy('createdAt', 'desc'),
-                limit(20)
-            );
-            snap = await getDocs(q);
-        } catch {
-            // Fallback ถ้า index ยังไม่พร้อม
-            const q = query(
-                collection(db, 'topup_requests'),
-                where('userId', '==', currentUser.uid),
-                limit(20)
-            );
-            snap = await getDocs(q);
-        }
-
-        container.innerHTML = '';
-
-        if (snap.empty) {
-            const empty = document.createElement('div');
-            empty.className = 'empty-state';
-            empty.innerHTML = `
-                <i class="fa-solid fa-receipt" style="font-size:2.2rem;color:#cbd5e1;margin-bottom:10px;display:block;"></i>
-                <p style="font-weight:600;color:#64748b;">ไม่มีประวัติการเติมเงิน</p>
-                <p style="font-size:.8rem;margin-top:4px;">เริ่มต้นโดยการแจ้งโอนเงินครั้งแรก</p>
-            `;
-            container.appendChild(empty);
-            return;
-        }
-
-        snap.forEach(docSnap => {
-            container.appendChild(createHistoryItem(docSnap.data(), docSnap.id));
-        });
-
-    } catch (e) {
-        console.error('[topup] loadHistory:', e);
-        container.innerHTML = '';
-        const errDiv = document.createElement('div');
-        errDiv.style.cssText = 'text-align:center;padding:24px;color:#ef4444;';
-        errDiv.textContent = 'โหลดประวัติไม่สำเร็จ';
-        const retryBtn = document.createElement('button');
-        retryBtn.textContent = 'ลองใหม่';
-        retryBtn.style.cssText = 'display:block;margin:8px auto 0;padding:6px 14px;background:#fee2e2;border:none;border-radius:8px;color:#dc2626;cursor:pointer;font-family:Prompt;font-weight:600;';
-        retryBtn.onclick = loadHistory;
-        errDiv.appendChild(retryBtn);
-        container.appendChild(errDiv);
-    }
-};
-
-function createHistoryItem(data, _id) {
-    const div = document.createElement('div');
-    div.className = 'history-item';
-
-    const date = data.createdAt?.toDate
-        ? data.createdAt.toDate().toLocaleString('th-TH', {
-            day:'numeric', month:'short', year:'2-digit',
-            hour:'2-digit', minute:'2-digit'
-          })
-        : '-';
-
-    const statusCfg = {
-        pending:  { color:'#f59e0b', bg:'#fffbeb', label:'รอตรวจสอบ', icon:'fa-clock'              },
-        approved: { color:'#10b981', bg:'#ecfdf5', label:'สำเร็จ',     icon:'fa-circle-check'      },
-        rejected: { color:'#ef4444', bg:'#fef2f2', label:'ปฏิเสธ',     icon:'fa-circle-xmark'      },
-        processing: { color:'#8b5cf6', bg:'#f5f3ff', label:'กำลังดำเนินการ', icon:'fa-spinner fa-spin' },
-        completed: { color:'#10b981', bg:'#ecfdf5', label:'เสร็จสิ้น', icon:'fa-circle-check' }
-    };
-    const st = statusCfg[data.status] || statusCfg.pending;
-
-    // Header row
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;';
-
-    const nameEl = document.createElement('div');
-    nameEl.style.cssText = 'font-weight:700;color:#1e293b;';
-    nameEl.textContent = data.paymentMethodName || 'ไม่ระบุ';
-
-    const badge = document.createElement('span');
-    badge.style.cssText = `display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:12px;font-weight:600;background:${st.bg};color:${st.color};`;
-    const badgeIcon = document.createElement('i');
-    badgeIcon.className = `fa-solid ${st.icon}`;
-    const badgeLabel = document.createElement('span');
-    badgeLabel.textContent = st.label;
-    badge.appendChild(badgeIcon); badge.appendChild(badgeLabel);
-    header.appendChild(nameEl); header.appendChild(badge);
-
-    // Date row
-    const dateEl = document.createElement('div');
-    dateEl.style.cssText = 'font-size:.82rem;color:#64748b;';
-    const dateIcon = document.createElement('i');
-    dateIcon.className = 'fa-regular fa-calendar';
-    dateIcon.style.marginRight = '5px';
-    dateEl.appendChild(dateIcon);
-    dateEl.appendChild(document.createTextNode(date));
-
-    // Amount
-    const amtEl = document.createElement('div');
-    if (data.amount > 0) {
-        amtEl.style.cssText = 'font-weight:800;color:#10b981;font-size:1.05rem;margin-top:6px;';
-        amtEl.textContent = '+฿' + Number(data.amount).toLocaleString('th-TH');
-    } else {
-        amtEl.style.cssText = 'font-size:.8rem;color:#94a3b8;margin-top:4px;';
-        amtEl.textContent = 'รอการระบุจำนวนเงิน';
-    }
-
-    div.appendChild(header);
-    div.appendChild(dateEl);
-    div.appendChild(amtEl);
-
-    // Rejection reason
-    if (data.rejectionReason) {
-        const rejDiv = document.createElement('div');
-        rejDiv.style.cssText = 'margin-top:8px;padding:8px 12px;background:#fef2f2;border-radius:8px;font-size:.8rem;color:#dc2626;border-left:3px solid #ef4444;display:flex;align-items:flex-start;gap:6px;';
-        const rejIcon = document.createElement('i');
-        rejIcon.className = 'fa-solid fa-triangle-exclamation';
-        rejIcon.style.marginTop = '2px';
-        const rejText = document.createElement('span');
-        rejText.textContent = data.rejectionReason;
-        rejDiv.appendChild(rejIcon); rejDiv.appendChild(rejText);
-        div.appendChild(rejDiv);
-    }
-
-    // Note
-    if (data.note) {
-        const noteDiv = document.createElement('div');
-        noteDiv.style.cssText = 'margin-top:5px;font-size:.8rem;color:#94a3b8;';
-        const noteIcon = document.createElement('i');
-        noteIcon.className = 'fa-regular fa-note-sticky';
-        noteIcon.style.marginRight = '5px';
-        noteDiv.appendChild(noteIcon);
-        noteDiv.appendChild(document.createTextNode(data.note));
-        div.appendChild(noteDiv);
-    }
-
-    return div;
-}
-
-// ── Redeem Code ────────────────────────────────────────────────
-window.redeemCode = async function () {
-    const input = document.getElementById('redeemCodeInput');
-    const code  = input?.value?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (!code || code.length < 6) {
-        showToast('กรุณากรอกโค้ดให้ถูกต้อง', 'error'); return;
-    }
-    const btn     = document.getElementById('redeemBtn');
-    const btnText = document.getElementById('redeemBtnText');
-    const origContent = btnText?.innerHTML;
-    btn.disabled = true;
-    if (btnText) {
-        btnText.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>กำลังตรวจสอบ...';
-    }
-
-    try {
-        const q = query(
-            collection(db, 'redeem_codes'),
-            where('code',   '==', code),
-            where('isUsed', '==', false),
-            limit(1)
-        );
-        const snap = await getDocs(q);
-
-        if (snap.empty) {
-            showToast('โค้ดไม่ถูกต้องหรือถูกใช้แล้ว', 'error'); 
-            btn.disabled = false;
-            if(btnText && origContent) btnText.innerHTML = origContent;
-            return;
-        }
-
-        const codeDoc  = snap.docs[0];
-        const codeData = codeDoc.data();
-
-        if (codeData.expiresAt && codeData.expiresAt.toDate() < new Date()) {
-            showToast('โค้ดหมดอายุแล้ว', 'error'); 
-            btn.disabled = false;
-            if(btnText && origContent) btnText.innerHTML = origContent;
-            return;
-        }
-        if (codeData.websiteId && codeData.websiteId !== currentWebsiteId) {
-            showToast('โค้ดนี้ไม่สามารถใช้กับเว็บไซต์นี้ได้', 'error'); 
-            btn.disabled = false;
-            if(btnText && origContent) btnText.innerHTML = origContent;
-            return;
-        }
-
-        // Transaction: mark used + credit balance
-        const batch  = writeBatch(db);
-        batch.update(doc(db, 'redeem_codes', codeDoc.id), {
-            isUsed:        true,
-            usedBy:        currentUser.uid,
-            usedByUid:     currentUser.uid,
-            usedAt:        serverTimestamp(),
-            usedWebsiteId: currentWebsiteId
-        });
-        batch.update(doc(db, 'users', currentUser.uid), {
-            balance:   increment(codeData.amount || 0),
-            updatedAt: serverTimestamp()
-        });
-        await batch.commit();
-
-        // Transaction log
-        await addDoc(collection(db, 'transactions'), {
-            userId:      currentUser.uid,
-            websiteId:   currentWebsiteId,
-            type:        'credit',
-            amount:      codeData.amount,
-            description: `แลกโค้ด ${code}`,
-            codeId:      codeDoc.id,
-            createdAt:   serverTimestamp()
-        });
-
-        showToast(`แลกโค้ดสำเร็จ! ได้รับ ฿${Number(codeData.amount).toLocaleString('th-TH')}`, 'success');
-        if (input) input.value = '';
-        await loadRedeemHistory();
-
-    } catch (e) {
-        console.error('[topup] redeemCode:', e);
-        showToast('เกิดข้อผิดพลาด กรุณาลองใหม่', 'error');
-    } finally {
-        btn.disabled = false;
-        if (btnText && origContent !== undefined) btnText.innerHTML = origContent;
-    }
-};
-
-window.pasteCode = async function () {
-    try {
-        const text = await navigator.clipboard.readText();
-        const input = document.getElementById('redeemCodeInput');
-        if (input) { input.value = text.toUpperCase().replace(/[^A-Z0-9-]/g,''); input.focus(); }
-    } catch { showToast('ไม่สามารถอ่านคลิปบอร์ดได้', 'error'); }
-};
-
-window.loadRedeemHistory = async function () {
-    const container = document.getElementById('redeemHistoryList');
-    if (!container || !currentUser) return;
-    try {
-        let snap;
-        try {
-            const q = query(
-                collection(db, 'transactions'),
-                where('userId', '==', currentUser.uid),
-                where('type',   '==', 'credit'),
-                orderBy('createdAt', 'desc'),
-                limit(10)
-            );
-            snap = await getDocs(q);
-        } catch {
-            const q = query(
-                collection(db, 'transactions'),
-                where('userId', '==', currentUser.uid),
-                where('type',   '==', 'credit'),
-                limit(10)
-            );
-            snap = await getDocs(q);
-        }
-
-        container.innerHTML = '';
-        if (snap.empty) {
-            const p = document.createElement('div');
-            p.style.cssText = 'text-align:center;color:#94a3b8;padding:16px;font-size:.85rem;';
-            p.textContent = 'ยังไม่มีประวัติการแลกโค้ด';
-            container.appendChild(p);
-            return;
-        }
-
-        snap.forEach(docSnap => {
-            const d    = docSnap.data();
-            if (!d.codeId) return; // กรองเฉพาะ redeem
-            const date = d.createdAt?.toDate
-                ? d.createdAt.toDate().toLocaleDateString('th-TH') : '-';
-            const row = document.createElement('div');
-            row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f8fafc;border-radius:10px;';
-            const left = document.createElement('div');
-            const codeEl = document.createElement('div');
-            codeEl.style.cssText = 'font-weight:700;color:#475569;font-family:monospace;font-size:.9rem;';
-            codeEl.textContent = d.description || '-';
-            const dateEl2 = document.createElement('div');
-            dateEl2.style.cssText = 'font-size:.75rem;color:#94a3b8;';
-            dateEl2.textContent = date;
-            left.appendChild(codeEl); left.appendChild(dateEl2);
-            const amtEl2 = document.createElement('div');
-            amtEl2.style.cssText = 'font-weight:800;color:#10b981;';
-            amtEl2.textContent = '+฿' + Number(d.amount || 0).toLocaleString('th-TH');
-            row.appendChild(left); row.appendChild(amtEl2);
-            container.appendChild(row);
-        });
-
-    } catch (e) { console.error('[topup] loadRedeemHistory:', e); }
-};
-
-// ── TrueMoney Voucher Gateway ───────────────────────────────────
-// ตรวจสอบว่าซองซ้ำหรือไม่
-async function isDuplicateVoucher(voucherHash) {
-    const q = query(
-        collection(db, 'topup_requests'),
-        where('websiteId', '==', currentWebsiteId),
-        where('voucherHash', '==', voucherHash),
-        where('status', 'in', ['completed', 'processing'])
-    );
-    const snapshot = await getDocs(q);
-    return !snapshot.empty;
-}
-
-// ดึงเบอร์ Admin จาก website settings
-async function getAdminPhone() {
-    if (!currentWebsiteId) {
-        // ถ้าไม่มี tenant ใช้เบอร์จาก system config
-        const configSnap = await getDoc(doc(db, 'system', 'payment_settings'));
-        if (configSnap.exists() && configSnap.data().truemoneyPhone) {
-            return configSnap.data().truemoneyPhone;
-        }
-        throw new Error('ไม่พบการตั้งค่าเบอร์ TrueMoney');
-    }
-    
-    const websiteRef = doc(db, 'websites', currentWebsiteId);
-    const websiteSnap = await getDoc(websiteRef);
-    
-    if (!websiteSnap.exists()) {
-        throw new Error('ไม่พบข้อมูลเว็บไซต์');
-    }
-    
-    const data = websiteSnap.data();
-    const phone = data.paymentSettings?.truemoneyPhone || data.truemoneyPhone;
-    
-    if (!phone) {
-        throw new Error('ยังไม่ได้ตั้งค่าเบอร์ TrueMoney ในระบบ');
-    }
-    
-    return phone;
-}
-
-function extractVoucherId(url) {
-    try {
-        const urlObj = new URL(url);
-        return urlObj.searchParams.get('v') || '';
-    } catch (e) {
-        // กรณีไม่ใช่ URL สมบูรณ์ ลอง split
-        const parts = url.split('?v=');
-        return parts[1] ? parts[1].split('&')[0] : '';
-    }
-}
-
-// ตรวจสอบซอง (ยังไม่รับเงิน)
-async function verifyVoucher(voucherHash, phone) {
-    const url = `https://gift.truemoney.com/campaign/vouchers/${voucherHash}/verify?mobile=${phone}`;
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (PanderX-System)'
-        }
-    });
-    return await response.json();
-}
-
-// รับเงินจริง
-async function redeemVoucher(voucherHash, phone) {
-    const url = `https://gift.truemoney.com/campaign/vouchers/${voucherHash}/redeem`;
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (PanderX-System)'
-        },
-        body: JSON.stringify({
-            mobile: phone,
-            voucher_hash: voucherHash
-        })
-    });
-    return await response.json();
-}
-
-// Submit Voucher (UI Function)
-window.submitVoucher = async function() {
-    const input = document.getElementById('voucherInput');
-    const btn = document.getElementById('voucherBtn');
-    const btnText = document.getElementById('voucherBtnText');
-    const btnLoading = document.getElementById('voucherBtnLoading');
-    const resultBox = document.getElementById('voucherResult');
-    
-    const url = input?.value?.trim();
-    if (!url || !url.includes('gift.truemoney.com')) {
-        showToast('กรุณาใส่ลิงก์ซองอั่งเปาที่ถูกต้อง', 'error');
-        return;
-    }
-    
-    if (!currentUser) {
-        showToast('กรุณาเข้าสู่ระบบก่อน', 'error');
-        return;
-    }
-    
-    // UI Loading state
-    btn.disabled = true;
-    btnText.style.display = 'none';
-    btnLoading.style.display = 'inline';
-    resultBox.style.display = 'none';
-    
-    try {
-        const voucherHash = extractVoucherId(url);
-        if (!voucherHash) {
-            throw new Error('ไม่สามารถอ่านรหัสซองได้');
-        }
-        
-        // 1. Check duplicate
-        const duplicate = await isDuplicateVoucher(voucherHash);
-        if (duplicate) {
-            throw new Error('ซองอั่งเปานี้ถูกใช้งานแล้ว');
-        }
-        
-        // 2. Get admin phone
-        const adminPhone = await getAdminPhone();
-        
-        // 3. Create pending record (lock ไม่ให้คนอื่นใช้ซ้ำพร้อมกัน)
-        const pendingRef = await addDoc(collection(db, 'topup_requests'), {
-            websiteId: currentWebsiteId,
-            userId: currentUser.uid,
-            userName: currentUser.displayName || currentUser.email?.split('@')[0] || 'ผู้ใช้',
-            userEmail: currentUser.email || '',
-            method: 'truemoney_voucher',
-            voucherHash: voucherHash,
-            voucherUrl: url,
-            amount: 0,
-            status: 'processing',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        });
-        
-        // 4. Verify voucher (check amount)
-        const verifyData = await verifyVoucher(voucherHash, adminPhone);
-        
-        if (verifyData.status.code !== 'SUCCESS') {
-            // Update to failed
-            await updateDoc(pendingRef, {
-                status: 'failed',
-                error: verifyData.status.message || 'ซองไม่ถูกต้อง',
-                updatedAt: serverTimestamp()
-            });
-            throw new Error(verifyData.status.message || 'ตรวจสอบซองไม่สำเร็จ');
-        }
-        
-        const amount = verifyData.data?.amount?.value || 0;
-        const senderName = verifyData.data?.sender_name || 'ไม่ระบุชื่อ';
-        const message = verifyData.data?.message || '';
-        
-        // 5. Redeem to admin wallet
-        const redeemData = await redeemVoucher(voucherHash, adminPhone);
-        
-        if (redeemData.status.code !== 'SUCCESS') {
-            await updateDoc(pendingRef, {
-                status: 'failed',
-                error: redeemData.status.message || 'รับเงินไม่สำเร็จ',
-                updatedAt: serverTimestamp()
-            });
-            throw new Error('รับเงินเข้าระบบไม่สำเร็จ กรุณาลองใหม่');
-        }
-        
-        // 6. Success! Update record + add balance
-        await updateDoc(pendingRef, {
-            status: 'completed',
-            amount: amount,
-            senderName: senderName,
-            message: message,
-            completedAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        });
-        
-        // 7. Add balance to user
-        const userRef = doc(db, 'users', currentUser.uid);
-        await updateDoc(userRef, {
-            balance: increment(amount),
-            lastTopupAt: serverTimestamp(),
-            lastTopupAmount: amount,
-            updatedAt: serverTimestamp()
-        });
-        
-        // 8. Transaction log
-        await addDoc(collection(db, 'transactions'), {
-            websiteId: currentWebsiteId,
-            userId: currentUser.uid,
-            type: 'topup_truemoney',
-            amount: amount,
-            requestId: pendingRef.id,
-            voucherHash: voucherHash,
-            senderName: senderName,
-            createdAt: serverTimestamp()
-        });
-        
-        // Success UI
-        resultBox.className = 'voucher-result-success';
-        resultBox.innerHTML = `
-            <div style="font-size:3rem;margin-bottom:8px;">✓</div>
-            <div style="font-weight:800;color:#166534;font-size:1.1rem;">เติมเงินสำเร็จ!</div>
-            <div style="color:#15803d;margin-top:4px;">จำนวน ${Number(amount).toLocaleString('th-TH')} บาท</div>
-            <div style="font-size:.8rem;color:#22c55e;margin-top:8px;">จาก: ${escapeHtml(senderName)}</div>
-        `;
-        resultBox.style.display = 'block';
-        showToast(`เติมเงินสำเร็จ ${amount} บาท`, 'success');
-        
-        input.value = '';
-        await loadVoucherHistory();
-        await loadHistory(); // โหลดประวัติทั่วไปด้วย
-        
-    } catch (error) {
-        console.error('[Voucher] Error:', error);
-        resultBox.className = 'voucher-result-error';
-        resultBox.innerHTML = `
-            <div style="font-size:2rem;margin-bottom:8px;">✕</div>
-            <div style="font-weight:700;color:#991b1b;">ไม่สำเร็จ</div>
-            <div style="color:#dc2626;margin-top:4px;font-size:.9rem;">${escapeHtml(error.message)}</div>
-        `;
-        resultBox.style.display = 'block';
-        showToast(error.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btnText.style.display = 'inline';
-        btnLoading.style.display = 'none';
-    }
-};
-
-// โหลดประวัติซองอั่งเปา
-window.loadVoucherHistory = async function() {
-    const container = document.getElementById('voucherHistoryList');
-    if (!container || !currentUser) return;
-    
-    try {
-        const q = query(
-            collection(db, 'topup_requests'),
-            where('userId', '==', currentUser.uid),
-            where('method', '==', 'truemoney_voucher'),
-            orderBy('createdAt', 'desc'),
-            limit(10)
-        );
-        
-        let snap;
-        try {
-            snap = await getDocs(q);
-        } catch {
-            // Fallback ไม่มี orderBy
-            const q2 = query(
-                collection(db, 'topup_requests'),
-                where('userId', '==', currentUser.uid),
-                where('method', '==', 'truemoney_voucher'),
-                limit(10)
-            );
-            snap = await getDocs(q2);
-        }
-        
-        container.innerHTML = '';
-        
-        if (snap.empty) {
-            const empty = document.createElement('div');
-            empty.style.cssText = 'text-align:center;color:#94a3b8;padding:16px;font-size:.85rem;';
-            empty.innerHTML = '<i class="fa-solid fa-gift" style="font-size:1.5rem;color:#cbd5e1;margin-bottom:8px;display:block;"></i>ยังไม่มีประวัติการใช้ซองอั่งเปา';
-            container.appendChild(empty);
-            return;
-        }
-        
-        snap.forEach(docSnap => {
-            const d = docSnap.data();
-            const date = d.createdAt?.toDate 
-                ? d.createdAt.toDate().toLocaleDateString('th-TH') 
-                : '-';
-            
-            const row = document.createElement('div');
-            row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px;background:#fef2f2;border-radius:12px;border:1px solid #fecaca;';
-            
-            const isSuccess = d.status === 'completed';
-            const statusColor = isSuccess ? '#10b981' : (d.status === 'failed' ? '#ef4444' : '#f59e0b');
-            const statusText = isSuccess ? 'สำเร็จ' : (d.status === 'failed' ? 'ล้มเหลว' : 'รอดำเนินการ');
-            
-            row.innerHTML = `
-                <div>
-                    <div style="font-weight:700;color:#7f1d1d;font-size:.9rem;">
-                        <i class="fa-solid fa-gift mr-1" style="color:#ef4444;"></i>
-                        ซองอั่งเปา
-                    </div>
-                    <div style="font-size:.75rem;color:#94a3b8;">${date}</div>
-                </div>
-                <div style="text-align:right;">
-                    <div style="font-weight:800;color:${isSuccess ? '#10b981' : '#64748b'};">
-                        ${isSuccess ? '+' : ''}${Number(d.amount || 0).toLocaleString('th-TH')} ฿
-                    </div>
-                    <div style="font-size:.7rem;color:${statusColor};font-weight:600;">
-                        ${statusText}
-                    </div>
-                </div>
-            `;
-            container.appendChild(row);
-        });
-        
-    } catch (e) {
-        console.error('[Voucher] load history error:', e);
-        container.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:16px;">โหลดประวัติไม่สำเร็จ</div>';
-    }
-};
-
-// ── Logout ─────────────────────────────────────────────────────
-window.handleLogout = async function () {
-    try { await signOut(auth); } catch (e) { console.error(e); }
-    location.href = './index.html';
-};
-
-// ── shimmer keyframes (สำหรับ spinner) ─────────────────────────
-if (!document.getElementById('topupShimmerStyle')) {
-    const s = document.createElement('style');
-    s.id = 'topupShimmerStyle';
-    s.textContent = `@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}} @keyframes spin{to{transform:rotate(360deg)}}`;
-    document.head.appendChild(s);
-}
-
-// ────────────────────────────────────────────────────────────────
-// ADMIN FUNCTIONS (ปรับแก้ style.display ตาม SKILL.md)
-// ────────────────────────────────────────────────────────────────
+// ==================== TOPUP MANAGEMENT ====================
 
 function setupTopupRealtime() {
-    const q = query(collection(db, 'topup_requests'), where('status', '==', 'pending'));
+    const { collection, query, where, onSnapshot } = window.firestoreFns;
+    const q = query(collection(db, "topup_requests"), where("status", "==", "pending"));
+    
     if (topupUnsubscribe) topupUnsubscribe();
+    
     topupUnsubscribe = onSnapshot(q, (snapshot) => {
         const count = snapshot.size;
         const badge = document.getElementById('topupBadge');
         if (badge) {
-            badge.textContent = count;
-            badge.style.display = count > 0 ? 'inline-block' : 'none';
+            if (count > 0) {
+                badge.textContent = count;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
         }
+        
         const topupSection = document.getElementById('topup');
-        if (topupSection?.classList.contains('active')) loadTopupRequests();
+        if (topupSection && topupSection.classList.contains('active')) {
+            loadTopupRequests();
+        }
     });
 }
 
 async function loadTopupRequests() {
-    if (typeof checkAccess === 'function' && !checkAccess('manage_topup')) return;
-    const status    = document.getElementById('topupStatusFilter')?.value || 'pending';
-    const tbody     = document.getElementById('topupTableBody');
+    if (!checkAccess('manage_topup')) return;
+    
+    const status = document.getElementById('topupStatusFilter')?.value || 'pending';
+    const tbody = document.getElementById('topupTableBody');
     const emptyState = document.getElementById('topupEmpty');
+    
     if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;"><div style="width:32px;height:32px;border:3px solid #e0f2fe;border-top-color:#38bdf8;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto;"></div></td></tr>';
-    if (emptyState) emptyState.style.display = 'none';
-
+    
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8"><div class="w-8 h-8 border-4 border-sky-100 border-t-sky-400 rounded-full animate-spin mx-auto"></div></td></tr>';
+    if (emptyState) emptyState.classList.add('hidden');
+    
     try {
+        const { collection, getDocs, query, orderBy, where } = window.firestoreFns;
+        
         let q;
         if (status === 'all') {
             q = query(collection(db, 'topup_requests'), orderBy('createdAt', 'desc'));
         } else {
-            q = query(collection(db, 'topup_requests'), where('status', '==', status), orderBy('createdAt', 'desc'));
+            q = query(collection(db, 'topup_requests'), where("status", "==", status), orderBy('createdAt', 'desc'));
         }
+        
         const snap = await getDocs(q);
-        const requests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
+        const requests = [];
+        snap.forEach(d => requests.push({ id: d.id, ...d.data() }));
+        
         updateTopupStats(requests);
-        try {
-            const methodsSnap  = await getDocs(collection(db, 'bank_accounts'));
-            const activeMethods = methodsSnap.docs.filter(d => d.data().isActive).length;
-            setTxt('activeMethodsCount', activeMethods);
-        } catch {}
-
+        
+        const methodsSnap = await getDocs(collection(db, 'bank_accounts'));
+        const activeMethods = methodsSnap.docs.filter(d => d.data().isActive).length;
+        document.getElementById('activeMethodsCount').textContent = activeMethods;
+        
         if (requests.length === 0) {
             tbody.innerHTML = '';
-            if (emptyState) emptyState.style.display = 'block';
+            if (emptyState) emptyState.classList.remove('hidden');
             return;
         }
-        const canApprove = typeof hasPermission === 'function' ? hasPermission('approve_topup') : true;
-        const statusClasses = {
-            pending:  'bg-amber-100 text-amber-700',
-            approved: 'bg-emerald-100 text-emerald-700',
-            rejected: 'bg-red-100 text-red-700',
-            processing: 'bg-purple-100 text-purple-700',
-            completed: 'bg-emerald-100 text-emerald-700'
-        };
-        const statusText = { 
-            pending:'รอตรวจสอบ', 
-            approved:'อนุมัติแล้ว', 
-            rejected:'ปฏิเสธ',
-            processing:'กำลังดำเนินการ',
-            completed:'เสร็จสิ้น'
-        };
-
+        
+        const canApprove = hasPermission('approve_topup');
+        
         tbody.innerHTML = requests.map(r => {
-            const date = r.createdAt?.toDate
-                ? r.createdAt.toDate().toLocaleDateString('th-TH', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
-                : '-';
-            const accountInfo = escapeHtml(r.accountNumber || r.phoneNumber || '-');
-            const slipSrc = r.slipBase64 || r.slipUrl || '';
-            const slipHtml = slipSrc
-                ? `<img src="${escapeHtml(slipSrc)}" class="slip-thumbnail" onclick="viewSlip('${escapeHtml(slipSrc)}')" title="คลิกดูรูปใหญ่" style="width:52px;height:52px;object-fit:cover;border-radius:8px;cursor:zoom-in;">`
-                : '<span style="color:#94a3b8;font-size:.8rem;">ไม่มีรูป</span>';
+            const date = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('th-TH', { 
+                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
+            }) : '-';
+            
+            const statusClasses = {
+                pending: 'bg-amber-100 text-amber-700 border-amber-200',
+                approved: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                rejected: 'bg-red-100 text-red-700 border-red-200'
+            };
+            
+            const statusText = {
+                pending: 'รอตรวจสอบ',
+                approved: 'อนุมัติแล้ว',
+                rejected: 'ปฏิเสธ'
+            };
 
+            const accountInfo = r.accountNumber || r.phoneNumber || '-';
+            
             return `
                 <tr class="hover:bg-slate-50/80 transition-colors">
-                    <td class="py-4 px-6 text-sm text-slate-600 font-medium">${escapeHtml(date)}</td>
+                    <td class="py-4 px-6 text-sm text-slate-600 font-medium">${date}</td>
                     <td class="py-4 px-6">
-                        <div class="font-bold text-slate-800 text-sm">${escapeHtml(r.userName || 'ไม่ระบุ')}</div>
-                        <div class="text-xs text-slate-500">${escapeHtml(r.userEmail || '-')}</div>
+                        <div class="font-bold text-slate-800 text-sm">${r.userName || 'ไม่ระบุ'}</div>
+                        <div class="text-xs text-slate-500">${r.userEmail || '-'}</div>
                     </td>
                     <td class="py-4 px-6">
                         <div class="flex items-center gap-2">
-                            <i class="fa-solid ${r.paymentMethodType === 'truemoney' || r.method === 'truemoney_voucher' ? 'fa-wallet text-orange-500' : 'fa-building-columns text-slate-500'}"></i>
-                            <span class="font-medium text-slate-700">${escapeHtml(r.paymentMethodName || (r.method === 'truemoney_voucher' ? 'TrueMoney Voucher' : 'ไม่ระบุ'))}</span>
+                            <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+                                <i class="fa-solid ${r.paymentMethodType === 'truemoney' ? 'fa-wallet' : 'fa-building-columns'}"></i>
+                            </div>
+                            <span class="font-medium text-slate-700">${r.paymentMethodName || r.bankName || 'ไม่ระบุ'}</span>
                         </div>
                     </td>
                     <td class="py-4 px-6 text-sm font-mono text-slate-600">${accountInfo}</td>
-                    <td class="py-4 px-6">${slipHtml}</td>
                     <td class="py-4 px-6">
-                        <span class="px-3 py-1.5 rounded-full text-xs font-bold ${statusClasses[r.status] || statusClasses.pending}">
-                            ${escapeHtml(statusText[r.status] || 'รอตรวจสอบ')}
+                        <img src="${r.slipUrl}" class="slip-thumbnail" onclick="viewSlip('${r.slipUrl}')" title="คลิกดูรูปใหญ่">
+                    </td>
+                    <td class="py-4 px-6">
+                        <span class="px-3 py-1.5 rounded-full text-xs font-bold border ${statusClasses[r.status] || statusClasses.pending}">
+                            ${statusText[r.status] || 'รอตรวจสอบ'}
                         </span>
                     </td>
                     <td class="py-4 px-6">
-                        <button onclick="openTopupModal('${escapeHtml(r.id)}')" class="px-4 py-2 ${r.status === 'pending' && canApprove ? 'bg-sky-500 text-white hover:bg-sky-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'} rounded-lg font-semibold transition text-sm">
-                            ${r.status === 'pending' && canApprove ? 'ตรวจสอบ' : 'ดูรายละเอียด'}
-                        </button>
+                        ${r.status === 'pending' && canApprove ? `
+                            <button onclick="openTopupModal('${r.id}')" class="px-4 py-2 bg-sky-500 text-white rounded-lg font-semibold hover:bg-sky-600 transition text-sm">
+                                ตรวจสอบ
+                            </button>
+                        ` : `
+                            <button onclick="openTopupModal('${r.id}')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg font-semibold hover:bg-slate-200 transition text-sm">
+                                ดูรายละเอียด
+                            </button>
+                        `}
                     </td>
-                </tr>`;
+                </tr>
+            `;
         }).join('');
-
+        
     } catch (e) {
-        console.error('[topup] loadTopupRequests:', e);
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:28px;color:#ef4444;">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(e.message)}</td></tr>`;
+        console.error('Load topup error:', e);
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-red-500">โหลดข้อมูลไม่สำเร็จ: ' + e.message + '</td></tr>';
     }
 }
 
 function updateTopupStats(requests) {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const pending       = requests.filter(r => r.status === 'pending').length;
-    const approvedToday = requests.filter(r =>
-        r.status === 'approved' && r.updatedAt?.toDate?.() >= today
-    ).length;
-    setTxt('pendingCount',      pending);
-    setTxt('approvedTodayCount', approvedToday);
-    setTxt('totalRequests',     requests.length);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const pending = requests.filter(r => r.status === 'pending').length;
+    const approvedToday = requests.filter(r => {
+        if (r.status !== 'approved') return false;
+        const date = r.updatedAt?.toDate ? r.updatedAt.toDate() : null;
+        return date && date >= today;
+    }).length;
+    
+    document.getElementById('pendingCount').textContent = pending;
+    document.getElementById('approvedTodayCount').textContent = approvedToday;
+    document.getElementById('totalRequests').textContent = requests.length;
 }
 
 async function openTopupModal(requestId) {
     try {
+        const { doc, getDoc } = window.firestoreFns;
         const snap = await getDoc(doc(db, 'topup_requests', requestId));
-        if (!snap.exists()) { showToast('ไม่พบข้อมูล', 'error'); return; }
+        
+        if (!snap.exists()) {
+            showToast('ไม่พบข้อมูล', 'error');
+            return;
+        }
+        
         currentTopupRequest = { id: snap.id, ...snap.data() };
         const r = currentTopupRequest;
+        
         const content = document.getElementById('topupModalContent');
-        const actions  = document.getElementById('topupActions');
+        const actions = document.getElementById('topupActions');
         const rejectForm = document.getElementById('rejectForm');
-
-        if (content) {
-            const date    = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString('th-TH') : '-';
-            const slipSrc = r.slipBase64 || r.slipUrl || '';
-            content.innerHTML = `
-                <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;padding:16px;background:#f8fafc;border-radius:16px;">
-                    <div style="width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:1.4rem;">
-                        ${escapeHtml((r.userName || 'U')[0].toUpperCase())}
+        
+        const date = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString('th-TH') : '-';
+        const accountInfo = r.accountNumber || r.phoneNumber || '-';
+        
+        content.innerHTML = `
+            <div class="flex items-center gap-4 mb-6 p-4 bg-slate-50 rounded-2xl">
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-white font-bold text-2xl">
+                    ${(r.userName || 'U')[0].toUpperCase()}
+                </div>
+                <div class="flex-1">
+                    <div class="font-bold text-slate-800 text-lg">${r.userName || 'ไม่ระบุชื่อ'}</div>
+                    <div class="text-slate-500">${r.userEmail}</div>
+                    <div class="text-xs text-slate-400 mt-1">User ID: ${r.userId}</div>
+                </div>
+            </div>
+            
+            <div class="space-y-4 mb-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="p-4 bg-slate-50 rounded-xl">
+                        <div class="text-sm text-slate-500 mb-1">ช่องทาง</div>
+                        <div class="font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid ${r.paymentMethodType === 'truemoney' ? 'fa-wallet text-blue-500' : 'fa-building-columns text-slate-600'}"></i>
+                            ${r.paymentMethodName || r.bankName || 'ไม่ระบุ'}
+                        </div>
                     </div>
-                    <div>
-                        <div style="font-weight:700;font-size:1rem;color:#1e293b;">${escapeHtml(r.userName || 'ไม่ระบุชื่อ')}</div>
-                        <div style="color:#64748b;font-size:.875rem;">${escapeHtml(r.userEmail || '')}</div>
+                    <div class="p-4 bg-slate-50 rounded-xl">
+                        <div class="text-sm text-slate-500 mb-1">ข้อมูลบัญชี</div>
+                        <div class="font-bold text-slate-800 font-mono">${accountInfo}</div>
                     </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-                    <div style="padding:14px;background:#f8fafc;border-radius:12px;">
-                        <div style="font-size:.8rem;color:#94a3b8;margin-bottom:4px;">ช่องทาง</div>
-                        <div style="font-weight:700;color:#1e293b;">${escapeHtml(r.paymentMethodName || (r.method === 'truemoney_voucher' ? 'TrueMoney Voucher' : 'ไม่ระบุ'))}</div>
-                    </div>
-                    <div style="padding:14px;background:#f8fafc;border-radius:12px;">
-                        <div style="font-size:.8rem;color:#94a3b8;margin-bottom:4px;">เวลา</div>
-                        <div style="font-weight:700;color:#1e293b;font-size:.85rem;">${escapeHtml(date)}</div>
-                    </div>
+                
+                <div class="p-4 bg-slate-50 rounded-xl">
+                    <div class="text-sm text-slate-500 mb-1">เวลาที่แจ้ง</div>
+                    <div class="font-bold text-slate-800">${date}</div>
                 </div>
-                ${slipSrc ? `
-                <div style="margin-bottom:16px;">
-                    <div style="font-size:.85rem;color:#94a3b8;margin-bottom:8px;">สลิปโอนเงิน</div>
-                    <img src="${escapeHtml(slipSrc)}" style="width:100%;border-radius:12px;border:2px solid #e2e8f0;cursor:zoom-in;" onclick="window.open('${escapeHtml(slipSrc)}', '_blank')">
-                </div>` : ''}
-                ${r.note ? `<div style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;font-size:.85rem;color:#92400e;margin-bottom:12px;">${escapeHtml(r.note)}</div>` : ''}
-                ${r.rejectionReason ? `<div style="padding:12px;background:#fef2f2;border:1px solid #fecdd3;border-radius:12px;font-size:.85rem;color:#dc2626;"><b>เหตุผล:</b> ${escapeHtml(r.rejectionReason)}</div>` : ''}
-            `;
+            </div>
+            
+            ${r.note ? `
+                <div class="mb-6">
+                    <div class="text-sm text-slate-500 mb-2">หมายเหตุจากผู้ใช้</div>
+                    <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">${r.note}</div>
+                </div>
+            ` : ''}
+            
+            <div class="mb-6">
+                <div class="text-sm text-slate-500 mb-2">สลิปโอนเงิน</div>
+                <img src="${r.slipUrl}" class="w-full rounded-xl border-2 border-slate-200 cursor-zoom-in hover:border-sky-400 transition" onclick="window.open('${r.slipUrl}', '_blank')">
+            </div>
+            
+            ${r.rejectionReason ? `
+                <div class="p-4 bg-red-50 border border-red-200 rounded-xl text-red-800">
+                    <div class="font-bold mb-1">เหตุผลที่ปฏิเสธ:</div>
+                    ${r.rejectionReason}
+                </div>
+            ` : ''}
+        `;
+        
+        const canApprove = hasPermission('approve_topup');
+        
+        if (r.status === 'pending' && canApprove) {
+            actions.classList.remove('hidden');
+            rejectForm.classList.add('hidden');
+        } else {
+            actions.classList.add('hidden');
+            rejectForm.classList.add('hidden');
         }
-        const canApprove = typeof hasPermission === 'function' ? hasPermission('approve_topup') : false;
-        if (actions)    actions.style.display    = (r.status === 'pending' && canApprove) ? 'flex' : 'none';
-        if (rejectForm) rejectForm.style.display = 'none';
-
-        const modal = document.getElementById('topupDetailModal');
-        if (modal) modal.style.display = 'flex';
+        
+        document.getElementById('topupDetailModal').classList.remove('hidden');
+        
     } catch (e) {
-        console.error('[topup] openModal:', e);
+        console.error('Error:', e);
         showToast('เกิดข้อผิดพลาด', 'error');
     }
 }
 
 function closeTopupModal() {
-    const modal = document.getElementById('topupDetailModal');
-    if (modal) modal.style.display = 'none';
+    document.getElementById('topupDetailModal').classList.add('hidden');
     currentTopupRequest = null;
 }
 
-function viewSlip(src) { if (src) window.open(src, '_blank'); }
+function viewSlip(url) {
+    window.open(url, '_blank');
+}
 
 function showRejectForm() {
-    const actions = document.getElementById('topupActions');
-    const rf = document.getElementById('rejectForm');
-    if (actions) actions.style.display = 'none';
-    if (rf) rf.style.display = 'block';
+    document.getElementById('topupActions').classList.add('hidden');
+    document.getElementById('rejectForm').classList.remove('hidden');
 }
+
 function hideRejectForm() {
-    const actions = document.getElementById('topupActions');
-    const rf = document.getElementById('rejectForm');
-    if (rf) rf.style.display = 'none';
-    if (actions) actions.style.display = 'flex';
+    document.getElementById('rejectForm').classList.add('hidden');
+    document.getElementById('topupActions').classList.remove('hidden');
 }
 
 async function approveTopup() {
-    if (typeof checkAccess === 'function' && !checkAccess('approve_topup')) return;
+    if (!checkAccess('approve_topup')) return;
     if (!currentTopupRequest) return;
+    
     try {
-        const amountInput = document.getElementById('approveAmount');
-        const amount = parseFloat(amountInput?.value) || currentTopupRequest.amount || 0;
-
+        const { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc } = window.firestoreFns;
+        
         await updateDoc(doc(db, 'topup_requests', currentTopupRequest.id), {
-            status: 'approved', amount,
-            verifiedAt: serverTimestamp(), verifiedBy: 'admin', updatedAt: serverTimestamp()
+            status: 'approved',
+            verifiedAt: serverTimestamp(),
+            verifiedBy: 'admin',
+            updatedAt: serverTimestamp()
         });
-        const userRef  = doc(db, 'users', currentTopupRequest.userId);
+        
+        // Update user balance
+        const userRef = doc(db, 'users', currentTopupRequest.userId);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
-            const curr = userSnap.data().balance ?? 0; // ✅ ??
+            const currentBalance = userSnap.data().balance || 0;
             await updateDoc(userRef, {
-                balance: curr + amount, updatedAt: serverTimestamp()
+                balance: currentBalance + (currentTopupRequest.amount || 0),
+                updatedAt: serverTimestamp()
             });
         }
-        await addDoc(collection(db, 'transactions'), {
+        
+        // Create notification
+        await addDoc(collection(db, "notifications"), {
             userId: currentTopupRequest.userId,
-            websiteId: currentTopupRequest.websiteId || null,
-            type: 'credit', amount,
-            description: 'เติมเงินผ่าน ' + (currentTopupRequest.paymentMethodName || 'โอนเงิน'),
-            orderId: currentTopupRequest.id,
+            type: 'topup_approved',
+            title: 'เติมเงินสำเร็จ',
+            message: `คำขอเติมเงินของคุณได้รับการอนุมัติแล้ว จำนวน ฿${(currentTopupRequest.amount || 0).toLocaleString()}`,
+            read: false,
             createdAt: serverTimestamp()
         });
+        
         showToast('อนุมัติรายการสำเร็จ', 'success');
         closeTopupModal();
         loadTopupRequests();
+        
     } catch (e) {
-        console.error('[topup] approveTopup:', e);
+        console.error('Approve error:', e);
         showToast('เกิดข้อผิดพลาด: ' + e.message, 'error');
     }
 }
 
 async function rejectTopup() {
-    if (typeof checkAccess === 'function' && !checkAccess('approve_topup')) return;
+    if (!checkAccess('approve_topup')) return;
     if (!currentTopupRequest) return;
-    const reason = document.getElementById('rejectReason')?.value?.trim();
-    if (!reason) { showToast('กรุณาระบุเหตุผล', 'error'); return; }
+    
+    const reason = document.getElementById('rejectReason')?.value.trim();
+    if (!reason) {
+        showToast('กรุณาระบุเหตุผล', 'error');
+        return;
+    }
+    
     try {
+        const { doc, updateDoc, serverTimestamp, collection, addDoc } = window.firestoreFns;
+        
         await updateDoc(doc(db, 'topup_requests', currentTopupRequest.id), {
-            status: 'rejected', rejectionReason: reason,
-            verifiedAt: serverTimestamp(), verifiedBy: 'admin', updatedAt: serverTimestamp()
+            status: 'rejected',
+            rejectionReason: reason,
+            verifiedAt: serverTimestamp(),
+            verifiedBy: 'admin',
+            updatedAt: serverTimestamp()
         });
+        
+        await addDoc(collection(db, "notifications"), {
+            userId: currentTopupRequest.userId,
+            type: 'topup_rejected',
+            title: 'เติมเงินไม่สำเร็จ',
+            message: `คำขอเติมเงินถูกปฏิเสธ: ${reason}`,
+            read: false,
+            createdAt: serverTimestamp()
+        });
+        
         showToast('ปฏิเสธรายการแล้ว', 'success');
         closeTopupModal();
         loadTopupRequests();
+        
     } catch (e) {
-        console.error('[topup] rejectTopup:', e);
+        console.error('Reject error:', e);
         showToast('เกิดข้อผิดพลาด', 'error');
     }
 }
 
-async function loadFeeSettings() {
+
+// ── TrueMoney Voucher Settings ─────────────────────────────────
+
+/**
+ * โหลดเบอร์ TrueMoney สำหรับรับซองอั่งเปา
+ * ดึงจาก system/payment_settings หรือ websites/{websiteId} ตาม context
+ */
+async function loadTrueMoneySettings() {
     try {
-        const snap = await getDoc(doc(db, 'system', 'topup_config'));
-        if (!snap.exists()) return;
-        const d = snap.data();
-        const bankEl = document.getElementById('fee_bank');
-        const tmEl   = document.getElementById('fee_truemoney');
-        if (bankEl) { bankEl.value = d.bankFee ?? 0;      bankEl.dispatchEvent(new Event('input')); }
-        if (tmEl)   { tmEl.value   = d.trueMoneyFee ?? 0; tmEl.dispatchEvent(new Event('input'));   }
-        showToast('โหลดค่าธรรมเนียมแล้ว', 'info');
-    } catch (e) { console.warn('[topup] loadFeeSettings:', e); }
+        const { doc, getDoc } = window.firestoreFns;
+        
+        // ดึงจาก system config ก่อน (สำหรับระบบรวมศูนย์)
+        const snap = await getDoc(doc(db, 'system', 'payment_settings'));
+        
+        if (snap.exists()) {
+            const data = snap.data();
+            const phoneInput = document.getElementById('tm_voucherPhone');
+            const apiKeyInput = document.getElementById('ss_paymentApiKey');
+            const merchantInput = document.getElementById('ss_merchantId');
+            
+            if (phoneInput) phoneInput.value = data.truemoneyPhone || '';
+            if (apiKeyInput) apiKeyInput.value = data.paymentApiKey || '';
+            if (merchantInput) merchantInput.value = data.merchantId || '';
+        }
+    } catch (e) {
+        console.error('[topup] loadTrueMoneySettings:', e);
+        showToast('โหลดการตั้งค่า TrueMoney ไม่สำเร็จ', 'error');
+    }
 }
 
-async function saveFeeSettings() {
-    if (typeof checkAccess === 'function' && !checkAccess('manage_settings')) return;
+/**
+ * บันทึกเบอร์ TrueMoney และ Payment Settings
+ */
+async function savePaymentSettings() {
+    if (typeof checkAccess === 'function' && !checkAccess('manage_settings')) {
+        showToast('คุณไม่มีสิทธิ์จัดการตั้งค่า', 'error');
+        return;
+    }
+    
     try {
-        const bankFee      = parseFloat(document.getElementById('fee_bank')?.value)       || 0;
-        const trueMoneyFee = parseFloat(document.getElementById('fee_truemoney')?.value)  || 0;
-        await setDoc(doc(db, 'system', 'topup_config'), {
-            bankFee, trueMoneyFee, updatedAt: serverTimestamp()
+        const { doc, setDoc, serverTimestamp } = window.firestoreFns;
+        
+        const phone = document.getElementById('tm_voucherPhone')?.value.trim();
+        const apiKey = document.getElementById('ss_paymentApiKey')?.value.trim();
+        const merchantId = document.getElementById('ss_merchantId')?.value.trim();
+        
+        // Validate phone number (ตัวเลข 10 หลัก)
+        if (phone && !/^\d{10}$/.test(phone.replace(/-/g, ''))) {
+            showToast('กรุณากรอกเบอร์โทรศัพท์ 10 หลักให้ถูกต้อง', 'error');
+            return;
+        }
+        
+        await setDoc(doc(db, 'system', 'payment_settings'), {
+            truemoneyPhone: phone || null,
+            paymentApiKey: apiKey || null,
+            merchantId: merchantId || null,
+            updatedAt: serverTimestamp(),
+            updatedBy: typeof currentUser !== 'undefined' ? currentUser?.uid : 'admin'
         }, { merge: true });
-        showToast(`บันทึกค่าธรรมเนียมสำเร็จ (ธนาคาร: ${bankFee}%, TrueMoney: ${trueMoneyFee}%)`, 'success');
-    } catch (e) { showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error'); }
+        
+        showToast('บันทึกการตั้งค่าสำเร็จ', 'success');
+        
+        // อัปเดต preview ถ้ามี
+        if (typeof updateFeePreviews === 'function') {
+            updateFeePreviews();
+        }
+        
+    } catch (e) {
+        console.error('[topup] savePaymentSettings:', e);
+        showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error');
+    }
 }
 
-function calcNetAmount(grossAmount, paymentType = 'bank') {
-    const pct = paymentType === 'truemoney'
-        ? parseFloat(document.getElementById('fee_truemoney')?.value || 0)
-        : parseFloat(document.getElementById('fee_bank')?.value     || 0);
-    return Math.floor(grossAmount * (1 - pct / 100));
-}
-
-// ── Exports ───────────────────────────────────────────────────
-window.setupTopupRealtime    = setupTopupRealtime;
-window.loadTopupRequests     = loadTopupRequests;
-window.updateTopupStats      = updateTopupStats;
-window.openTopupModal        = openTopupModal;
-window.closeTopupModal       = closeTopupModal;
-window.viewSlip              = viewSlip;
-window.showRejectForm        = showRejectForm;
-window.hideRejectForm        = hideRejectForm;
-window.approveTopup          = approveTopup;
-window.rejectTopup           = rejectTopup;
-window.loadFeeSettings       = loadFeeSettings;
-window.saveFeeSettings       = saveFeeSettings;
-window.calcNetAmount         = calcNetAmount;
+// ── Exports for global access ─────────────────────────────────
+window.loadTrueMoneySettings = loadTrueMoneySettings;
+window.savePaymentSettings = savePaymentSettings;
