@@ -942,42 +942,6 @@
                         </div>
                     </div>
                     <!-- ── /Fee Settings ── -->
-
-                    <!-- ── TrueMoney Voucher Settings ── -->
-                    <div class="bg-gradient-to-br from-red-50 to-pink-50 rounded-2xl border border-red-200/60 p-5 mt-5">
-                        <div class="flex items-center gap-3 mb-4">
-                            <div class="section-icon bg-gradient-to-br from-red-400 to-pink-500 w-9 h-9 rounded-lg flex-shrink-0">
-                                <i class="fa-solid fa-gift text-sm"></i>
-                            </div>
-                            <div class="flex-1">
-                                <div class="font-bold text-slate-700 text-sm">ตั้งค่ารับเงินซองอั่งเปา TrueMoney</div>
-                                <div class="text-xs text-slate-400">เบอร์โทรศัพท์สำหรับรับซองอั่งเปาอัตโนมัติ</div>
-                            </div>
-                            <div class="flex gap-2 flex-shrink-0">
-                                <button onclick="loadVoucherSettings()"
-                                    class="px-3 py-1.5 text-xs bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg font-medium transition-colors shadow-sm">
-                                    <i class="fa-solid fa-rotate mr-1"></i>โหลด
-                                </button>
-                                <button onclick="saveVoucherSettings()"
-                                    class="px-4 py-1.5 text-xs bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg font-semibold hover:shadow-md transition-all">
-                                    <i class="fa-solid fa-floppy-disk mr-1"></i>บันทึก
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="bg-white rounded-xl p-4 border border-red-100 shadow-sm">
-                            <label class="block text-xs font-semibold text-slate-700 mb-2">
-                                <i class="fa-solid fa-phone text-red-500 mr-1"></i>เบอร์โทรศัพท์รับซองอั่งเปา <span class="text-red-400">*</span>
-                            </label>
-                            <input type="tel" id="tm_voucherPhone" placeholder="0812345678" maxlength="10"
-                                class="w-full px-3 py-2.5 border border-red-200 rounded-lg focus:border-red-400 focus:outline-none bg-white font-mono text-base tracking-wider text-red-700 font-semibold">
-                            <p class="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                                <i class="fa-solid fa-circle-info text-red-400"></i>
-                                ระบบจะใช้เบอร์นี้ในการรับเงินผ่านซองอั่งเปาอัตโนมัติ
-                            </p>
-                        </div>
-                    </div>
-                    <!-- ── /TrueMoney Voucher Settings ── -->
                 </div>
             </div>
 
@@ -1275,6 +1239,19 @@
                         </h3>
                         
                         <div class="space-y-4">
+                            <div class="bg-gradient-to-br from-red-50 to-pink-50 p-4 rounded-xl border border-red-200">
+                                <label class="block text-sm font-bold text-red-800 mb-2 flex items-center gap-2">
+                                    <i class="fa-solid fa-gift text-red-500"></i>
+                                    เบอร์ TrueMoney รับซองอั่งเปา <span class="text-red-500">*</span>
+                                </label>
+                                <input type="tel" id="tm_voucherPhone" placeholder="0812345678" maxlength="10"
+                                    class="w-full px-3 py-2.5 border border-red-200 rounded-xl focus:border-red-400 focus:outline-none bg-white font-mono text-base tracking-wider">
+                                <p class="text-xs text-red-600 mt-2 flex items-center gap-1">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                    เบอร์นี้จะใช้รับเงินอัตโนมัติจากซองอั่งเปา
+                                </p>
+                            </div>
+
                             <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                 <label class="block text-sm font-bold text-slate-700 mb-2">API Key</label>
                                 <input type="password" id="ss_paymentApiKey" placeholder="กรอก API Key" 
@@ -1606,89 +1583,6 @@
     </div>
 
     <!-- Scripts -->
-    <script>
-// ==========================================
-// MODAL CONTROL FUNCTIONS
-// ==========================================
-
-function openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-    }
-}
-
-function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.classList.remove('active');
-        document.body.style.overflow = '';
-    }
-}
-
-// Close modal when clicking overlay
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-            overlay.classList.remove('active');
-            document.body.style.overflow = '';
-        }
-    });
-});
-
-// ==========================================
-// VOUCHER SETTINGS
-// ==========================================
-
-function loadVoucherSettings() {
-    // Load from Firestore
-    const dbRef = db?.collection ? db.collection('system').doc('settings') : null;
-    if (dbRef) {
-        dbRef.get().then(doc => {
-            if (doc.exists) {
-                document.getElementById('tm_voucherPhone').value = doc.data().tm_voucherPhone || '';
-            }
-        }).catch(console.error);
-    }
-}
-
-function saveVoucherSettings() {
-    const phone = document.getElementById('tm_voucherPhone').value.trim();
-    
-    if (!phone || phone.length < 10) {
-        showToast('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง', 'error');
-        return;
-    }
-    
-    const dbRef = db?.collection ? db.collection('system').doc('settings') : null;
-    if (dbRef) {
-        dbRef.set({ tm_voucherPhone: phone, updatedAt: new Date() }, { merge: true })
-            .then(() => showToast('บันทึกเบอร์รับซองอั่งเปาสำเร็จ', 'success'))
-            .catch(err => showToast('เกิดข้อผิดพลาด: ' + err.message, 'error'));
-    } else {
-        showToast('บันทึกสำเร็จ (โหมดทดสอบ)', 'success');
-    }
-}
-
-// PIN Input Auto-focus
-document.addEventListener('DOMContentLoaded', () => {
-    const pinInputs = document.querySelectorAll('.pin-input');
-    pinInputs.forEach((input, index) => {
-        input.addEventListener('input', (e) => {
-            if (e.target.value.length === 1 && index < pinInputs.length - 1) {
-                pinInputs[index + 1].focus();
-            }
-        });
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Backspace' && !e.target.value && index > 0) {
-                pinInputs[index - 1].focus();
-            }
-        });
-    });
-});
-    </script>
-
     <script src="js/backend/modules/core.js"></script>
     <script src="js/backend/modules/utils.js"></script>
     <script src="js/backend/modules/navigation.js"></script>
