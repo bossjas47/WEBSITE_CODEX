@@ -296,61 +296,63 @@
             </div>
         </div>
     </nav>
-
-    <!-- ========================================== -->
-    <!-- STATS SECTION (ย้ายขึ้นมาบนสุด) -->
-    <!-- ========================================== -->
-    <div class="w-full max-w-6xl mx-auto px-4 pt-24 pb-6">
-        <div class="stats-header-v2 mb-4">
-            <div class="flex items-center gap-3 justify-center md:justify-start">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-sky-500/30">
-                    <i class="fa-solid fa-chart-line"></i>
-                </div>
-                <div>
-                    <h2 class="text-lg font-bold text-slate-800">สถิติการใช้งาน</h2>
-                    <p id="serviceAge" class="text-xs text-slate-500">กำลังโหลด...</p>
-                </div>
+<!-- index.html - Stats Section (แก้ไขส่วนนี้) -->
+<!-- ========================================== -->
+<!-- STATS SECTION -->
+<!-- ========================================== -->
+<div class="w-full max-w-6xl mx-auto px-4 pt-24 pb-6 stats-section">
+    <div class="stats-header-v2">
+        <h2 class="stats-title-main">สถิติการให้บริการ</h2>
+        <p class="stats-subtitle">บริการเว็บไซต์สำเร็จรูปคุณภาพสูง</p>
+    </div>
+    
+    <div class="stats-grid-v2">
+        <!-- วันนี้ -->
+        <div class="stat-card-v2 stat-today">
+            <div class="stat-content">
+                <span class="stat-label">วันนี้</span>
+                <span class="stat-value" id="statToday">0</span>
+            </div>
+            <div class="stat-icon-wrap">
+                <i class="fa-solid fa-sun"></i>
             </div>
         </div>
-        
-        <div class="stats-grid-v2">
-            <div class="stat-card-v2 stat-today">
-                <div class="stat-icon-bg"><i class="fa-solid fa-sun"></i></div>
-                <div class="stat-content">
-                    <span class="stat-label">วันนี้</span>
-                    <span class="stat-value" id="statToday">0</span>
-                </div>
-                <div class="stat-trend up"><i class="fa-solid fa-arrow-trend-up"></i></div>
-            </div>
 
-            <div class="stat-card-v2 stat-week">
-                <div class="stat-icon-bg"><i class="fa-solid fa-calendar-week"></i></div>
-                <div class="stat-content">
-                    <span class="stat-label">สัปดาห์นี้</span>
-                    <span class="stat-value" id="statWeek">0</span>
-                </div>
-                <div class="stat-trend"><i class="fa-solid fa-minus"></i></div>
+        <!-- สัปดาห์นี้ -->
+        <div class="stat-card-v2 stat-week">
+            <div class="stat-content">
+                <span class="stat-label">สัปดาห์นี้</span>
+                <span class="stat-value" id="statWeek">0</span>
             </div>
-
-            <div class="stat-card-v2 stat-month">
-                <div class="stat-icon-bg"><i class="fa-solid fa-calendar-days"></i></div>
-                <div class="stat-content">
-                    <span class="stat-label">เดือนนี้</span>
-                    <span class="stat-value" id="statMonth">0</span>
-                </div>
-                <div class="stat-trend"><i class="fa-solid fa-minus"></i></div>
+            <div class="stat-icon-wrap">
+                <i class="fa-solid fa-calendar-week"></i>
             </div>
+        </div>
 
-            <div class="stat-card-v2 stat-total">
-                <div class="stat-icon-bg"><i class="fa-solid fa-trophy"></i></div>
-                <div class="stat-content">
-                    <span class="stat-label">ทั้งหมด</span>
-                    <span class="stat-value" id="statTotal">0</span>
-                </div>
-                <div class="stat-trend up"><i class="fa-solid fa-crown"></i></div>
+        <!-- เดือนนี้ -->
+        <div class="stat-card-v2 stat-month">
+            <div class="stat-content">
+                <span class="stat-label">เดือนนี้</span>
+                <span class="stat-value" id="statMonth">0</span>
+            </div>
+            <div class="stat-icon-wrap">
+                <i class="fa-solid fa-calendar-days"></i>
+            </div>
+        </div>
+
+        <!-- ทั้งหมด -->
+        <div class="stat-card-v2 stat-total">
+            <div class="stat-content">
+                <span class="stat-label">ทั้งหมด</span>
+                <span class="stat-value" id="statTotal">0</span>
+            </div>
+            <div class="stat-icon-wrap">
+                <i class="fa-solid fa-trophy"></i>
             </div>
         </div>
     </div>
+</div>
+
 
     <!-- ========================================== -->
     <!-- HERO SECTION (จัดกึ่งกลาง + ไม่ชนขอบ) -->
